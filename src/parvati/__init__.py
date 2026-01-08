@@ -1,6 +1,6 @@
 """
 PARVATI
-Profiles and Analysis of Radial Velocity using Astronomical Tools for Investigation
+Profiles Analysis and Radial Velocities using Astronomical Tools for Investigation
 ==============================================================================================
 
 PARVATI is a Python package to compute and analyse stellar line profiles
@@ -41,7 +41,7 @@ according to their use:
 1. Spectra ingestion and preparation
 ----------------------------------------------
 read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, \
-              nfluxcol=0, snrcol=0, echcol=0):
+              nfluxcol=0, snrcol=0, echcol=0, errcol=0):
     Read the spectrum from an ASCII or FITS file
     
 norm_spectrum(wave, flux, snr=False, echelle=False, deg=2, \
@@ -58,6 +58,8 @@ compute_lsd(spectrum, mask_data, vrange=(-200,200), \
            step=1., cosmic=False, sigma=10, clean=False, \
            verbose=False, output=False)
     Compute the mean line profile using the Least-Squares Deconvolution
+    Donati J.-F., et al., 1997, MNRAS 291, 658
+    Kochukhov O., et al., 2010, A&A 524, 5
 
 compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., \
            mask_spectrum=False, cosmic=False, sigma=10, clean=False, \
@@ -81,12 +83,17 @@ fit_profile(vrad, flux, errs=0, gauss=True, lorentz=True, voigt=True, \
 
 moments(rvs, ccf, errs=0, limits=False, normalise=True)
     Compute the line moments
+    Briquet M., Aerts C., 2003, A&A 398, 687
+    errors: Teague R., 2019, Res. Notes AAS 3, 74
 
 bisector(rv_range, flux, errs=0, limits=False)
-    Compute the bisector of a stellar line profile    
+    Compute the bisector of a stellar line profile
+    Baştürk Ö., et al., 2011, A&A 535, 17
 
 fourier(rv_range, flux, errs=False, limits=False, ld=0.6)
     Compute the Fourier transform of the line
+    The vsini is derived using the empirical formula from
+    Dravins, D., Lindegren, L., & Torkelsson, U. 1990, A&A, 237, 137
 
 4. Auxiliary functions
 ----------------------------------------------
@@ -129,3 +136,4 @@ find_shift_fft(y1, y2)
 """
 
 from parvati.parvati import *
+__version__ = '1.0.5'

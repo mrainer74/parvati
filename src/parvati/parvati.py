@@ -1,8 +1,7 @@
 """
-PARVATI: Profile and Analysis of Radial Velocity using Astronomical Tools for Investigation
+PARVATI: Profiles Analysis and Radial Velocities using Astronomical Tools for Investigation
 A Python package to compute and analyse stellar line profiles
 Written by Monica Rainer
-Last modified: 2025-12-10
 
     PARVATI is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -15,9 +14,11 @@ Last modified: 2025-12-10
 
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
+    
+====================================================
 Functions:
-- read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, snrcol=0, echcol=0):
+- read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, \
+    snrcol=0, echcol=0, errcol=0):
     Read the spectrum from an ASCII or FITS file
 
 - norm_spectrum(wave, flux, snr=False, echelle=False, deg=2, \
@@ -43,6 +44,8 @@ Functions:
 - compute_lsd(spectrum, mask_data, vrange=(-200,200), \
      step=1., cosmic=False, sigma=10, clean=False, verbose=False, output=False)
     Compute the mean line profile using the Least-Squares Deconvolution
+    Donati J.-F., et al., 1997, MNRAS 291, 658
+    Kochukhov O., et al., 2010, A&A 524, 5
     
 - compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=False, \
      cosmic=False, sigma=10, clean=False, weights=False, verbose=False, output=False)
@@ -80,16 +83,20 @@ Functions:
 
 - moments(rvs, ccf, errs=0, limits=False, normalise=True)
     Compute the line moments
+    Briquet M., Aerts C., 2003, A&A 398, 687
+    errors: Teague R., 2019, Res. Notes AAS 3, 74
 
 - bisector(rv_range, flux, errs=0, limits=False)
     Compute the bisector of a stellar line profile
+    Baştürk Ö., et al., 2011, A&A 535, 17
 
 - find_shift_fft(y1, y2)
     Auxiliary function for fourier
 
 - fourier(rv_range, flux, errs=False, limits=False, ld=0.6)
-    https://www.great-esf.eu/AstroStats13-Python/numpy/scipy_fft.html
     Compute the Fourier transform
+    The vsini is derived using the empirical formula from
+    Dravins, D., Lindegren, L., & Torkelsson, U. 1990, A&A, 237, 137
 
 """
 
@@ -122,9 +129,11 @@ ckms = const.c.to('km/s').value
 ###############################
 #  Read the stellar spectrum  #
 ###############################
-def read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, snrcol=0, echcol=0):
+def read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, snrcol=0, echcol=0, errcol=0):
     """
     Read the spectrum from an ASCII or FITS file.
+    ====================================================
+    Input parameters:
     filename = name of the ASCII/FITS file of the spectrum.
                If FITS, it may be either 1d:
                   a. the flux if the data hdu[0].data
@@ -134,12 +143,15 @@ def read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, snrcol=0
                   2. wavelength in data.field(wavecol-1)
                   3. flux in data.field(fluxcol-1)
                   4. snr, echelle e normalised flux optional. Not present if the col = 0
+                  4b. if the error is present (instead of SNR), the column may be given
+                      It will then be converted to SNR
                If ASCII, it must have at least 2 columns:
                   1 - wavelength
                   2 - flux
                   OPTIONAL
                   3 - normalised flux
                   4 - signal-to-noise ratio
+                  4b. - error (errcol) instead of SNR (snrcol), it will be converted
                   5 - echelle orders
                To normalise the spectrum and save them in the correct format,
                use norm_spectrum on the original data with the flag output=True
@@ -160,10 +172,14 @@ def read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, snrcol=0
                 flux = data.field(int(fluxcol-1))
                 if snrcol:
                     snr = data.field(int(snrcol-1))
+                elif errcol:
+                    err = data.field(int(errcol-1))
+                    with np.errstate(all='ignore'):
+                        snr = flux/err
                 else:
                     with np.errstate(all='ignore'):
                         snr = np.sqrt(flux)
-                    snr = np.nan_to_num(snr)
+                snr = np.nan_to_num(snr, nan=0.01, posinf=0.01, neginf=0.01)
                 if echcol:
                     echelle = data.field(int(echcol-1))
                 else:
@@ -216,7 +232,7 @@ def read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, snrcol=0
                     wave = np.arange(len(flux))
                 with np.errstate(all='ignore'):
                     snr = np.sqrt(flux)
-                snr = np.nan_to_num(snr)
+                snr = np.nan_to_num(snr, nan=0.01, posinf=0.01, neginf=0.01)
                 echelle = False
                 nflux = flux
 
@@ -226,10 +242,15 @@ def read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, snrcol=0
         flux = all_data[int(fluxcol-1)]
         if snrcol:
             snr = all_data[int(snrcol-1)]
+        elif errcol:
+            err = data.field(int(errcol-1))
+            with np.errstate(all='ignore'):
+                snr = flux/err
         else:
             with np.errstate(all='ignore'):
                 snr = np.sqrt(flux)
-            snr = np.nan_to_num(snr)
+        snr = np.nan_to_num(snr, nan=0.01, posinf=0.01, neginf=0.01)
+
         if echcol:
             echelle = all_data[int(echcol-1)]
         else:
@@ -255,6 +276,8 @@ def norm_spectrum(wave, flux, snr=False, echelle=False, deg=2, \
     n_ord=False, refine=False, output=False):
     """
     Automatically normalise a stellar spectrum:
+    ====================================================
+    Input parameters:
     wave = wavelength array
     flux = flux array
     snr = snr array (optional)
@@ -442,6 +465,8 @@ def read_mask(maskname, unit='a', ele=False, no_ele=False, depths=(0.01,1),\
               balmer=True, tellurics=True, wmin=False, wmax=False, absorption=False):
     """
     Read stellar mask (either binary mask, VALD file, or absorption spectrum/model)
+    ====================================================
+    Input parameters:
     maskname = name of the mask ASCII/FITS file
     unit  = wavelength units, choose between:
             'a': Angstrom (default)
@@ -566,6 +591,7 @@ def read_mask(maskname, unit='a', ele=False, no_ele=False, depths=(0.01,1),\
 
 def split_spectrum(spectrum):
     """
+    Auxiliary function.
     Split the spectrum (dictionary format) according to gaps or
     overlaps in the wavelength
     """
@@ -590,6 +616,7 @@ def split_spectrum(spectrum):
 
 def rebin_spectrum(o_wave, o_flux, o_nflux, o_snr, wave_step):
     """
+    Auxiliary function.
     Rebin the spectrum on the wave_step array
     """
 
@@ -618,6 +645,7 @@ def rebin_spectrum(o_wave, o_flux, o_nflux, o_snr, wave_step):
 
 def remove_cosmics(len_vrange, o_split_nflux, sigma):
     """
+    Auxiliary function.
     Remove cosmics via sigma clipping
     """
     chunk = max(len_vrange*2, len(o_split_nflux)/20)
@@ -637,6 +665,7 @@ def remove_cosmics(len_vrange, o_split_nflux, sigma):
 
 def smooth_spectrum(new_wave, o_split_nflux, fine_step=10):
     """
+    Auxiliary function.
     Clean the spectrum with a smoothing spline
     """
     smooth_wave = np.linspace(new_wave[0],new_wave[-1], num = int(len(new_wave)*fine_step), endpoint=True)
@@ -654,7 +683,11 @@ def smooth_spectrum(new_wave, o_split_nflux, fine_step=10):
 def compute_lsd(spectrum, mask_data, vrange=(-200,200), \
      step=1., cosmic=False, sigma=10, clean=False, verbose=False, output=False):
     """
-    Compute Least-Squares Deconvolution
+    Compute Least-Squares Deconvolution, as described in:
+    Donati J.-F., et al., 1997, MNRAS 291, 658
+    Kochukhov O., et al., 2010, A&A 524, 5
+    ====================================================
+    Input parameters:
     spectrum: input spectrum as given by read_spectrum
               dictionary with keys "wave", "flux", "nflux", "snr"
     mask_data: input spectrum as given by read_mask
@@ -863,6 +896,8 @@ def compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=F
      cosmic=False, sigma=10, clean=False, weights=False, verbose=False, output=False):
     """
     Compute Cross-Correlation Function
+    ====================================================
+    Input parameters:
     spectrum: input spectrum as given by read_spectrum
               dictionary with keys "wave", "flux", "nflux", "snr"
     mask_data: input spectrum as given by read_mask
@@ -961,7 +996,7 @@ def compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=F
             if not weights:
                 o_weights = np.ones(o_split_nflux.shape)
             else:
-                o_weights = np.nan_to_num(o_split_snr, nan=0.1, posinf=0.1, neginf=0.1)#**2
+                o_weights = np.nan_to_num(o_split_snr, nan=0.1, posinf=0.1, neginf=0.1)**2
                 o_weights = o_weights/np.nanmax(o_weights)
 
 
@@ -1006,7 +1041,7 @@ def compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=F
         if verbose:
             print(f"Profile saved in file {output}")
 
-    return profile        
+    return profile  
         
 
 #########################################
@@ -1015,6 +1050,8 @@ def compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=F
 def show_ccf(rvs,ccfs):
     """
     Plot line profiles and define line limits
+    ====================================================
+    Input parameters:
     rvs: array with n radial velocities ranges
     ccfs: array with n mean line profiles
     """
@@ -1055,7 +1092,8 @@ def extract_line(spectrum, unit='a', w0=6562.801, vrange=(-200,200), step=1.0, v
     Extract a single line from a spectrum at w0 as a mean line profile
     convert the wavelength to RVs using w0 as RV=0
     extract only the region inside vrange, with the required step
-    Input:
+    ====================================================
+    Input parameters:
         spectrum = input spectrum as given by read_spectrum
               dictionary with keys "wave", "flux", "nflux", "snr"
         unit  = wavelength units, choose between:
@@ -1070,7 +1108,7 @@ def extract_line(spectrum, unit='a', w0=6562.801, vrange=(-200,200), step=1.0, v
         verbose: print descriptive messages
         output: name of the ASCII output file
     Output:
-        the profile as a dcitionary (same format as compute_lsd and compute_ccf)
+        the profile as a dictionary (same format as compute_lsd and compute_ccf)
            -->  profile = {'rv_range':rv_range, 'profile': data, 'error': error}
         if output=filename the profile is saved as an ASCII file with the name "filename"
     """
@@ -1144,6 +1182,8 @@ def extract_line(spectrum, unit='a', w0=6562.801, vrange=(-200,200), step=1.0, v
 def norm_profile(profiles, rvcol=1, prfcol=2, errcol=0, sfx='pfn', std='line_mean_std', limits=False):
     """
     Normalise the profiles to account for continuum problems.
+    ====================================================
+    Input parameters:
     profiles : list of profile ASCII filenames (rv, flux, [error])
                or FITS BinTable (RV_RANGE, PROFILE, ERROR)
     *col: column/field of the data (value-1), if 0 the data is missing
@@ -1272,6 +1312,7 @@ def norm_profile(profiles, rvcol=1, prfcol=2, errcol=0, sfx='pfn', std='line_mea
 ############################
 def func_rot(x,c,a,x0,xl,ld=0.6):
     """
+    Auxiliary function.
     Rotational broadening function, from:
     Gray, D. F. 2008, The Observation and Analysis of Stellar Photospheres
     x: dataset
@@ -1290,6 +1331,7 @@ def func_rot(x,c,a,x0,xl,ld=0.6):
 
 def gaussian(x,x0,s,F0,K):
     """
+    Auxiliary function.
     Gaussian function
     x: dataset
     x0: center of the line (RV, initial guess value)
@@ -1303,6 +1345,7 @@ def gaussian(x,x0,s,F0,K):
 
 def lorentzian(x, x0, g, F0, K):
     """
+    Auxiliary function.
     Lorentzian function
     x: dataset
     x0: center of the line (RV, initial guess value)
@@ -1317,6 +1360,7 @@ def lorentzian(x, x0, g, F0, K):
 
 def voigt_function(x, x0, g, s, F0, K):    
     """
+    Auxiliary function.
     Voigt function
     x: dataset
     x0: center of the line (RV, initial guess value)
@@ -1338,6 +1382,8 @@ def voigt_function(x, x0, g, s, F0, K):
 def fit_profile(vrad, flux, errs=0, gauss=True, lorentz=True, voigt=True, rot=True, rv0=0, width=10, ld=0.6):
     """
     Fit a mean line profile
+    ====================================================
+    Input parameters:
     vrad: vrad range of the profile
     flux: profile values
     gauss: fit with a Gaussian
@@ -1528,6 +1574,8 @@ def fit_profile(vrad, flux, errs=0, gauss=True, lorentz=True, voigt=True, rot=Tr
 def moments(rvs, ccf, errs=0, limits=False, normalise=True):
     """
     Compute the line moments
+    ====================================================
+    Input parameters:
     rvs: array with radial velocity range
     ccf: array with mean line profile
     errs: is given, the real errors are used to compute the error on the moments
@@ -1561,7 +1609,7 @@ def moments(rvs, ccf, errs=0, limits=False, normalise=True):
 
 
 
-    # 2. compute moments (https://www.aanda.org/articles/aa/full/2003/05/aa3122/node2.html)
+    # 2. compute moments (https://www.aanda.org/articles/aa/full/2003/05/aa3122/aa3122.html)
     # https://spectral-cube.readthedocs.io/en/latest/moments.html
     # https://en.wikipedia.org/wiki/Moment_(mathematics)
     # m0 = EW
@@ -1623,6 +1671,8 @@ def moments(rvs, ccf, errs=0, limits=False, normalise=True):
 def bisector(rv_range, flux, errs=0, limits=False):
     """
     Compute the bisector of a stellar line profile
+    ====================================================
+    Input parameters:
     rv_range: radial velocity array
     flux: line profile flux
     limits: line limits, given as a tuple (rv_min,rv_max)
@@ -1720,6 +1770,7 @@ def bisector(rv_range, flux, errs=0, limits=False):
 ######################################################
 def find_shift_fft(y1, y2):
     """
+    Auxiliary function.
     Obtained from AI Overview (as long as it works...)
     """
     # Ensure y1 and y2 have same length for FFT correlation
@@ -1740,8 +1791,12 @@ def find_shift_fft(y1, y2):
 ###########################################
 def fourier(rv_range, flux, errs=False, limits=False, ld=0.6):
     """
-    https://www.great-esf.eu/AstroStats13-Python/numpy/scipy_fft.html
     Compute the Fourier transform
+    https://www.great-esf.eu/AstroStats13-Python/numpy/scipy_fft.html
+    The vsini is computed using the empirical formula from
+    Dravins, D., Lindegren, L., & Torkelsson, U. 1990, A&A, 237, 137
+    ====================================================
+    Input parameters:
     rv_range: array with radial velocity range
     flux: array with mean line profile
     errs: array with errors (if not given, the errors will be computed)

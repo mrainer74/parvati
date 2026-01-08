@@ -26,9 +26,12 @@ dependencies = [
   "csaps",
 ]
 
+#[tool.hatch.build.targets.sdist]
+#include = ["<package>/*"]
+
 [project.urls]
 Homepage = "https://github.com/mrainer74/parvati"
 Issues = "https://github.com/mrainer74/parvati/issues"
 
 [tool.hatch.version]
-path = "src/parvati/__version__.py"
+path = "src/parvati/__init__.py"

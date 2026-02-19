@@ -18,18 +18,28 @@ python -m pip install parvati
 ```
 
 ## Preparation of the spectra
-The input spectra may have different formats: either ASCII files with wavelength, flux and additional information (e.g., SNR, errors, or echelle order number), standard monodimensional FITS files or FITS tables. The spectra may be read with the `read_spectrum` function. Before extracting the line profiles they must be normalised, e.g., using the `norm_spectrum` function.
+The input spectra may have different formats: either ASCII files with wavelength, flux and additional information (e.g., SNR, errors, or echelle order number), standard monodimensional FITS files or FITS tables. The data in the FITS tables may be either in different fields of hdu[1] (like for GIANO-B ms1d data or ESPRESSO s1d data) or in different hdus (like in ESPRESSO s2d data).
+The spectra may be read with the `read_spectrum` function.
+Before extracting the line profiles they must be normalised, e.g., using the `norm_spectrum` function.
 
 ### Read the spectra
 The function `read_spectrum` will require as input the filename of the spectrum, and accordingly to the other options given it will read:
 
 - a monodimensional FITS file with the flux as the hdu[0].data and the wavelength in the hdu[0].header (CRVAL1, CDELT1, NAXIS1)
+- a FITS file in the e2ds format of HARPS/HARPS-N/SOPHIE, with the echelle ordes still unmerged and the wavelength information in the header in the *DRS CAL TH DEG LL and *DRS CAL TH COEFF LLXX keywords
 - a FITS table with all the data in hdu[1].data. By default, the wavelength will be read in the first field and the flux in the second field, but the number of the field may be specified. If there are any additional data as SNR and/or echelle order number and/or normalised flux and/or absolute errors, they may be specified here. If given, the S/N supersedes the errors, otherwise the errors will be transformed in S/N (S/N=flux/errors).
 **IMPORTANT:** the numbers of the fields start with 1, not 0
+- a FITS table with data in several different hdu[X]. By default, the wavelength will be read in hdu[1] and the flux in the hdu[2], but the number of the hdus may be specified. If there are any additional data as SNR and/or echelle order number and/or normalised flux and/or absolute errors, they may be specified here. If given, the S/N supersedes the errors, otherwise the errors will be transformed in S/N (S/N=flux/errors).
 - an ASCII files with at least two columns (wavelength and flux), but additional columns with SNR and/or echelle order number and/or normalised flux and/or absolute errors may be specified here. If given, the S/N supersedes the errors, otherwise the errors will be transformed in S/N (S/N=flux/errors). 
 **IMPORTANT:** the numbers of the columns start with 1, not 0
 
 The wavelength is assumed to be in Angstroms, if otherwise then it must be specified using the `unit` parameter.
+
+[!TIP]
+Read the GIANO-B ms1d data with the options: wavecol=2, fluxcol=3, snrcol=4, echcol=1
+Read the ESPRESSO S1D data with the options: wavecol=1, fluxcol=3, errcol=4
+Read the ESPRESSO S2D data with the options: wavecol=4, fluxcol=1, errcol=2
+Read the CARMENES (VIS and NIR) data with the options: wavecol=4, fluxcol=1, errcol=3
 
 ### Normalise the spectra
 If the spectra are not normalised, it is possible to use the function `norm_spectrum` to do so. The function requires at least the wavelength and flux as input. It is possible to set the degree of the polynomial and a number of subsets to be normalised independently.
@@ -61,11 +71,11 @@ Once the profiles have been obtained, PARVATI allows to perform several useful o
 First of all, even if the profiles should already be normalised, any slight deviation from a perfect normalisation of the spectra will impact on the normalisation of the profiles. It is better to re-normalised them using the `norm_profile` function. This function requires as input not the name of a single file, but an ASCII file with a list of names: this will allow to compute also an average mean line profile and the standard deviation of the profiles from this average, to better see where possible line profile variations are located. 
 
 ### Fit the profiles
-Once normalised, the profiles may be fitted using the `fit_profile` function. It is possible to choose one or more different fitting functions: Gaussian, Lorentzian, Voigt or rotational profile. All the fitting functions yield a Radial Velocity (RV) estimation, the Equivalent Width (EW) and other information depending on the function (e.g. the v*sin*i from the rotational function). 
+Once normalised, the profiles may be fitted using the `fit_profile` function. It is possible to choose one or more different fitting functions: Gaussian, Lorentzian, Voigt or rotational profile. All the fitting functions yield a Radial Velocity (RV) estimation, the Equivalent Width (EW) and other information depending on the function (e.g. the *v*sin*i* from the rotational function). 
 The rotational function is taken from [Gray, D. F. 2008, The Observation and Analysis of Stellar Photosphere](https://ui.adsabs.harvard.edu/link_gateway/2008oasp.book.....G/PUB_HTML).
 
 ### Compute the line moments
-The first four line moments may be computed from the (normalised) profiles using the `moments` function. The moments are:
+The first five line moments may be computed from the (normalised) profiles using the `moments` function. The moments are:
 
 - m0: EW
 - m1: RV
@@ -79,8 +89,8 @@ The definition for the moments is taken from [Briquet M. & Aerts C., 2003, A&A 3
 The function`bisector` computes both the bisector of the line and the bisector's span. The error computation and the definition of the bisector's span are taken from [Baştürk Ö., et al., 2011, A&A 535, 17](https://doi.org/10.1051/0004-6361/201117740).
 
 ### Compute the Fourier Transform of the line
-The function `fourier` first symmetrises the line and then performs the Fourier Transform (FT) of the symmetrised line. The symmetrisation process yields another estimate of the RV (but without any associtated error), while the positions of the first 3 zeroes of the FT give information on the v*sin*i and the differential rotation IF the rotational broadening is the dominant line broadening effect.
-The v*sin*i is derived using the empirical formula from [Dravins, D., Lindegren, L., & Torkelsson, U. 1990, A&A, 237, 137](https://articles.adsabs.harvard.edu/pdf/1990A%26A...237..137D).
+The function `fourier` first symmetrises the line and then performs the Fourier Transform (FT) of the symmetrised line. The symmetrisation process yields another estimate of the RV (but without any associtated error), while the positions of the first 3 zeroes of the FT give information on the *v*sin*i* and the differential rotation IF the rotational broadening is the dominant line broadening effect.
+The *v*sin*i* is derived using the empirical formula from [Dravins, D., Lindegren, L., & Torkelsson, U. 1990, A&A, 237, 137](https://articles.adsabs.harvard.edu/pdf/1990A%26A...237..137D).
 
 ## Test files
 A couple of simple scripts are given in the `tests` directory along with two high-resolution spectra and two VALD stellar masks to guide in computing/extracting the line profiles and then analysing them.

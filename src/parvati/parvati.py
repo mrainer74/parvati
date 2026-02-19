@@ -17,8 +17,12 @@ Written by Monica Rainer
     
 ====================================================
 Functions:
+- read_wave_e2ds(header)
+    Read the wavelength solution in the e2ds spectra of:
+    HARPS - HARPS-N - SOPHIE from the old DRS (before 2025).
+
 - read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, \
-    snrcol=0, echcol=0, errcol=0):
+    snrcol=0, echcol=0, errcol=0, vacuum=True):
     Read the spectrum from an ASCII or FITS file
 
 - norm_spectrum(wave, flux, snr=False, echelle=False, deg=2, \
@@ -26,7 +30,7 @@ Functions:
     Automatically normalise a stellar spectrum
 
 - read_mask(maskname, unit='a', ele=False, no_ele=False, depths=(0.01,1),\
-              balmer=True, tellurics=True, wmin=False, wmax=False, absorption=False)
+              balmer=True, tellurics=True, wmin=False, wmax=False, invert=False, vacuum=True)
     Read stellar mask (either binary mask, VALD file, or spectrum)
 
 - split_spectrum(spectrum)
@@ -109,6 +113,9 @@ from uncertainties import umath, ufloat
 from astropy import constants as const
 from astropy.stats import sigma_clip
 from astropy.io import fits
+import astropy.units as u
+
+from specutils.utils.wcs_utils import air_to_vac
 
 from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
@@ -125,11 +132,46 @@ from csaps import csaps as smooth_spline
 ckms = const.c.to('km/s').value
 
 
+########################################
+# Auxiliary function for read_spectrum #
+########################################
+
+def read_wave_e2ds(header):
+    """
+    Read the wavelength solution in the e2ds spectra of:
+    HARPS - HARPS-N - SOPHIE
+    from the old DRS (before 2025).
+    """
+    
+    obs_all = ['ESO', 'OHP', 'TNG']
+    n_pix = header['NAXIS1']
+    n_ord = header['NAXIS2']
+    for obs in obs_all:
+        try:
+            deg = header[f'HIERARCH {obs} DRS CAL TH DEG LL']
+            break
+        except KeyError:
+            pass
+    ll_coeff = np.zeros((n_ord, deg + 1))
+    # Read coefficients
+    for i in range(n_ord):
+        for j in range(deg + 1):
+            ll_coeff[i, j] = header['HIERARCH {} DRS CAL TH COEFF '
+                                    'LL{}'.format(obs, (j + (deg + 1)*i))]
+    # Evaluate polynomials
+    x = np.arange(n_pix)  # Pixel array
+    ww = np.zeros((n_ord, n_pix))  # Wavelength 2D array
+    echelle = np.zeros(ww.shape)
+    for i in range(len(ww)):
+        ww[i] = np.poly1d(ll_coeff[i][::-1])(x)
+        echelle[i] = echelle[i] + i + 1
+    return ww, echelle
+
 
 ###############################
 #  Read the stellar spectrum  #
 ###############################
-def read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, snrcol=0, echcol=0, errcol=0):
+def read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, snrcol=0, echcol=0, errcol=0, vacuum=True):
     """
     Read the spectrum from an ASCII or FITS file.
     ====================================================
@@ -165,6 +207,7 @@ def read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, snrcol=0
     # Check first if it is a FITS file:
     try:
         with fits.open(filename) as hdu:
+            # Look for data in the fields of hdu[1]
             try:
                 data = hdu[1].data
                 head = hdu[0].header
@@ -201,7 +244,12 @@ def read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, snrcol=0
                             if len(echelle.shape) == 1:
                                 o_echelle[n] = o_echelle[n]+echelle[n]
                             else:
-                                echelle[n] = echelle[n][idx_sort]
+                                o_echelle[n] = echelle[n][idx_sort]
+                        else:
+                            o_echelle[n] = o_echelle[n]+n+1
+                    if np.nansum(o_echelle):
+                        echelle = o_echelle                                
+                                
                     if np.sum(o_echelle):
                         echelle = o_echelle
                     if wave[0][0] > wave[-1][-1]:
@@ -209,34 +257,109 @@ def read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, snrcol=0
                         flux = np.concatenate(np.flipud(flux))
                         snr = np.concatenate(np.flipud(snr))
                         nflux = np.concatenate(np.flipud(nflux))
-                        if echcol:
-                            echelle = np.concatenate(np.flipud(echelle))
+                        echelle = np.concatenate(np.flipud(echelle))
                     else:
                         wave = np.concatenate(wave)
                         flux = np.concatenate(flux)
                         snr = np.concatenate(snr)
                         nflux = np.concatenate(nflux)
-                        if echcol:
-                            echelle = np.concatenate(echelle)
+                        echelle = np.concatenate(echelle)
                                 
+            # hdu[1] exists, but without fields. Use other hdu[X]
+            except AttributeError:
+                head = hdu[0].header
+                wave = hdu[int(wavecol)].data
+                flux = hdu[int(fluxcol)].data
+                if snrcol:
+                    snr = hdu[int(snrcol)].data
+                elif errcol:
+                    err = hdu[int(errcol)].data
+                    with np.errstate(all='ignore'):
+                        snr = flux/err
+                else:
+                    with np.errstate(all='ignore'):
+                        snr = np.sqrt(flux)
+                snr = np.nan_to_num(snr, nan=0.01, posinf=0.01, neginf=0.01)
+                if echcol:
+                    echelle = hdu[int(echcol)].data
+                else:
+                    echelle = False
+                if nfluxcol:
+                    nflux = hdu[int(nfluxcol)].data
+                else:
+                    nflux = flux
+                # Check if the data is 1d arrays or matrix, sort the wavelength and adjust
+                if len(wave.shape) > 1:
+                    if np.nanmean(wave[1] - wave[0]) < abs(wave[0][1] - wave[0][0]):
+                        wave = 0.5*(wave[::2] + wave[1::2])
+                        flux = flux[::2] + flux[1::2]
+                        nflux = 0.5*(nflux[::2] + nflux[1::2])
+                        if snrcol:
+                            snr = np.sqrt(snr[::2]**2 + snr[1::2]**2)
+                        elif errcol:
+                            err = err[::2] + err[1::2]
+                            with np.errstate(all='ignore'):
+                                snr = flux/err
+                        else:
+                            with np.errstate(all='ignore'):
+                                snr = np.sqrt(flux)
+                    o_echelle = np.zeros(wave.shape)
+                    for n, o_wave in enumerate(wave):
+                        idx_sort = np.argsort(o_wave)
+                        o_wave = o_wave[idx_sort]
+                        flux[n] = flux[n][idx_sort]
+                        snr[n] = snr[n][idx_sort]
+                        nflux[n] = nflux[n][idx_sort]
+                        if echcol:
+                            if len(echelle.shape) == 1:
+                                o_echelle[n] = o_echelle[n]+echelle[n]
+                            else:
+                                o_echelle[n] = echelle[n][idx_sort]
+                        else:
+                            o_echelle[n] = o_echelle[n]+n+1
+                    if np.nansum(o_echelle):
+                        echelle = o_echelle
+                    if wave[0][0] > wave[-1][-1]:
+                        wave = np.concatenate(np.flipud(wave))
+                        flux = np.concatenate(np.flipud(flux))
+                        snr = np.concatenate(np.flipud(snr))
+                        nflux = np.concatenate(np.flipud(nflux))
+                        #if echcol:
+                        #    echelle = np.concatenate(np.flipud(echelle))
+                        echelle = np.concatenate(np.flipud(echelle))
+                    else:
+                        wave = np.concatenate(wave)
+                        flux = np.concatenate(flux)
+                        snr = np.concatenate(snr)
+                        nflux = np.concatenate(nflux)
+                        #if echcol:
+                        #    echelle = np.concatenate(echelle)
+                        echelle = np.concatenate(echelle)            
+            
+            #hdu[1] does not exists, use only hdu[0]
             except IndexError:
                 flux = hdu[0].data
                 head = hdu[0].header
                 try:
-                    start = head['CRVAL1']
-                    step = head['CDELT1']
-                    length = head['NAXIS1']
-                    end = start + (step*length) - step
-                    wave = np.linspace(start, end, length)
+                    wave, echelle = read_wave_e2ds(head)
                 except KeyError:
-                    wave = np.arange(len(flux))
+                    try:
+                        start = head['CRVAL1']
+                        step = head['CDELT1']
+                        length = head['NAXIS1']
+                        end = start + (step*length) - step
+                        wave = np.linspace(start, end, length)
+                    except KeyError:
+                        wave = np.arange(len(flux))
+                    echelle = False
                 with np.errstate(all='ignore'):
                     snr = np.sqrt(flux)
                 snr = np.nan_to_num(snr, nan=0.01, posinf=0.01, neginf=0.01)
                 echelle = False
                 nflux = flux
 
-    except OSError:       
+    # it is not a FITS file, treat it as an ASCII file
+    except OSError:     
         all_data = np.loadtxt(filename, unpack=True)
         wave = all_data[int(wavecol-1)]
         flux = all_data[int(fluxcol-1)]
@@ -263,6 +386,8 @@ def read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, snrcol=0
         head = fits.PrimaryHDU().header
             
     wave = wave*adjust[unit]
+    if not vacuum:
+        wave = air_to_vac(wave*u.AA).value
     spectrum = {'wave': wave, 'flux': flux, 'nflux': nflux, 'snr': snr, 'echelle': echelle, 'header': head}
 
     return spectrum
@@ -462,7 +587,7 @@ def norm_spectrum(wave, flux, snr=False, echelle=False, deg=2, \
 #  Read the stellar mask, select elements and depths  #
 #######################################################
 def read_mask(maskname, unit='a', ele=False, no_ele=False, depths=(0.01,1),\
-              balmer=True, tellurics=True, wmin=False, wmax=False, absorption=False):
+              balmer=True, tellurics=True, wmin=False, wmax=False, invert=False, vacuum=True):
     """
     Read stellar mask (either binary mask, VALD file, or absorption spectrum/model)
     ====================================================
@@ -485,7 +610,7 @@ def read_mask(maskname, unit='a', ele=False, no_ele=False, depths=(0.01,1),\
            Lines with wavelength < wmin will not be used
     wmax = maximum wavelength length to consider, in the SAME units as the mask.
            Lines with wavelength > wmax will not be used
-    absorption = the mask is a *normalised* absorption spectrum (e.g. a stellar 
+    invert = the mask is a *normalised* absorption spectrum (e.g. a stellar 
            spectrum or a model with absorption lines). Once read, the flux values 
            will be changed to: 
            depths = 1.0 - fluxes
@@ -545,7 +670,7 @@ def read_mask(maskname, unit='a', ele=False, no_ele=False, depths=(0.01,1),\
         all_mask = read_spectrum(maskname, unit=unit)
         wmask = all_mask['wave']
         dmask = all_mask['flux']
-        if absorption:
+        if invert:
             dmask = 1.0 - dmask
             #dmask[dmask<0] = 0
         if wmin:
@@ -580,6 +705,9 @@ def read_mask(maskname, unit='a', ele=False, no_ele=False, depths=(0.01,1),\
             idxs = np.nonzero(np.logical_or(wmask < region[0], wmask > region[1]))
             wmask = wmask[idxs]
             dmask = dmask[idxs]
+
+    if not vacuum:
+        wmask = air_to_vac(wmask*u.AA).value
 
     mask = {'wave': wmask, 'depths': dmask}
 
@@ -906,7 +1034,7 @@ def compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=F
     step: velocity step in km/s of the resulting profile
     mask_spectrum: if False, the mask is a list of Dirac delta (wavelength and weight/depths)
                    if True, the mask is a spectrum, with continuum and lines
-                     --> remember to flag the mask as absorption in the read_mask procedure
+                     --> remember to flag the mask as invert in the read_mask procedure
                          to switch the continuum from 1 to 0, and the lines from absorption
                          to peaks
     cosmic: remove cosmic rays from the spectra
@@ -1291,7 +1419,7 @@ def norm_profile(profiles, rvcol=1, prfcol=2, errcol=0, sfx='pfn', std='line_mea
         ax1 = fig.add_subplot(211)
         ax1.plot(rv_mean, ccf_mean, 'k-')
         ax1.set_ylabel('Normalised flux')
-        ax1.set_title('CCF mean')
+        ax1.set_title('Mean profile')
         ax2 = fig.add_subplot(212)
         ax2.plot(rv_mean, std_dev, 'k-')
         ax2.set_xlabel('Doppler velocity (km/s)')
@@ -1399,7 +1527,6 @@ def fit_profile(vrad, flux, errs=0, gauss=True, lorentz=True, voigt=True, rot=Tr
     massimo = np.amax(flux)
     minimo = np.amin(flux)
     f_0 = massimo-minimo
-    
 
     if np.sum(errs):
         best = np.nanmin(errs[errs>0])

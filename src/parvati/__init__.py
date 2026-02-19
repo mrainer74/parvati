@@ -41,7 +41,7 @@ according to their use:
 1. Spectra ingestion and preparation
 ----------------------------------------------
 read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, \
-              nfluxcol=0, snrcol=0, echcol=0, errcol=0):
+              nfluxcol=0, snrcol=0, echcol=0, errcol=0, vacuum=True):
     Read the spectrum from an ASCII or FITS file
     
 norm_spectrum(wave, flux, snr=False, echelle=False, deg=2, \
@@ -51,7 +51,8 @@ norm_spectrum(wave, flux, snr=False, echelle=False, deg=2, \
 2. Single line extraction or mean line profile computation
 ----------------------------------------------
 read_mask(maskname, unit='a', ele=False, no_ele=False, depths=(0.01,1),\
-          balmer=True, tellurics=True, wmin=False, wmax=False, absorption=False)
+          balmer=True, tellurics=True, wmin=False, wmax=False, \
+          invert=False, vacuum=True)
     Read stellar mask (either binary mask, VALD file, or spectrum)
 
 compute_lsd(spectrum, mask_data, vrange=(-200,200), \
@@ -97,6 +98,9 @@ fourier(rv_range, flux, errs=False, limits=False, ld=0.6)
 
 4. Auxiliary functions
 ----------------------------------------------
+read_wave_e2ds(header)
+    Auxiliary function for read_spectrum
+
 split_spectrum(spectrum)
      Auxiliary function for compute_lsd/compute_ccf
 
@@ -136,4 +140,4 @@ find_shift_fft(y1, y2)
 """
 
 from parvati.parvati import *
-__version__ = '1.0.5'
+__version__ = '1.0.6'

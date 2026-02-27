@@ -1003,7 +1003,7 @@ def compute_lsd(spectrum, mask_data, vrange=(-200,200), \
     lsd_errs_mean = np.nanmean(lsd_errs, axis=1)    
     
     LSD = np.average(lsd_results, axis=0, weights=lsd_weights/(lsd_errs_mean**2)) #weighted considering the number of mask lines and the SNR of the order
-    LSD_ERR = np.average(lsd_errs, axis=0, weights=lsd_weights/lsd_errs_mean**2)
+    LSD_ERR = np.average(lsd_errs, axis=0, weights=lsd_weights/(lsd_errs_mean**2))
     LSD = 1. - LSD
     profile = {'rv_range':rv_range, 'profile': LSD, 'error': LSD_ERR}
     if verbose:
@@ -1088,7 +1088,7 @@ def compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=F
 
         # Interpolate spectrum on finer wavelength range
         new_wave, o_split_flux, o_split_nflux, o_split_snr = rebin_spectrum(o_wave, split_flux[o], split_nflux[o], split_snr[o], wave_step)
-        o_split_snr[o_split_snr<=0.1] = 0.1
+        o_split_snr[o_split_snr<=0.01] = 0.01
         o_split_errs = o_split_nflux/o_split_snr
         
 
@@ -1121,12 +1121,6 @@ def compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=F
         e_ccf = np.zeros(len(rv_range))
         
         for n, rv in enumerate(rv_range):
-            if not weights:
-                o_weights = np.ones(o_split_nflux.shape)
-            else:
-                o_weights = np.nan_to_num(o_split_snr, nan=0.1, posinf=0.1, neginf=0.1)**2
-                o_weights = o_weights/np.nanmax(o_weights)
-
 
             rv_mask_wave = mask_wave*(1.0 + rv/ckms)
             rv_mask_depths = np.zeros(len(o_split_nflux))
@@ -1142,8 +1136,16 @@ def compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=F
             inv_nflux = 1.0 - o_split_nflux
 
             inv_nflux[inv_nflux<0] = 0
-            ccf[n] = np.nansum((inv_nflux) * rv_mask_depths * o_weights)/mask_weight
-            e_ccf[n] = (np.nansum((o_split_errs) * rv_mask_depths * o_weights)/mask_weight)/np.sqrt(mask_weight)
+            if not weights:
+                o_weights = np.ones(inv_nflux.shape)
+
+            else:            
+                o_weights = np.nan_to_num(o_split_snr, nan=0.01, posinf=0.01, neginf=0.01)#**2
+                o_weights = o_weights/np.nansum(o_weights)
+                o_weights = o_weights*len(inv_nflux)
+
+            ccf[n] = np.nansum(inv_nflux * rv_mask_depths * o_weights)/mask_weight
+            e_ccf[n] = (np.nansum(o_split_errs * rv_mask_depths * o_weights)/mask_weight)/np.sqrt(mask_weight)
            
         ccf_results.append(ccf)
         ccf_errs.append(e_ccf)

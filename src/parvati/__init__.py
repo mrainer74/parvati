@@ -1,7 +1,8 @@
 """
 PARVATI
-Profiles Analysis and Radial Velocities using Astronomical Tools for Investigation
-==============================================================================================
+Profiles Analysis and Radial Velocities 
+using Astronomical Tools for Investigation
+========================================================================
 
 PARVATI is a Python package to compute and analyse stellar line profiles
 Written by Monica Rainer
@@ -140,4 +141,4 @@ find_shift_fft(y1, y2)
 """
 
 from parvati.parvati import *
-__version__ = '1.0.7'
+__version__ = '1.1.0'

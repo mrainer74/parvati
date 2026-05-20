@@ -230,13 +230,14 @@ def read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, snrcol=0
                 if nfluxcol:
                     nflux = data.field(int(nfluxcol-1))
                 else:
-                    nflux = flux
+                    nflux = flux.copy()
                 # Check if the data is 1d arrays or matrix, sort the wavelength and adjust
                 if len(wave.shape) > 1:
+                    #print(wave)
                     o_echelle = np.zeros(wave.shape)
                     for n, o_wave in enumerate(wave):
-                        idx_sort = np.argsort(o_wave)
-                        o_wave = o_wave[idx_sort]
+                        idx_sort = np.argsort(wave[n])
+                        wave[n] = wave[n][idx_sort]
                         flux[n] = flux[n][idx_sort]
                         snr[n] = snr[n][idx_sort]
                         nflux[n] = nflux[n][idx_sort]
@@ -247,11 +248,14 @@ def read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, snrcol=0
                                 o_echelle[n] = echelle[n][idx_sort]
                         else:
                             o_echelle[n] = o_echelle[n]+n+1
+                    
                     if np.nansum(o_echelle):
                         echelle = o_echelle                                
                                 
                     if np.sum(o_echelle):
                         echelle = o_echelle
+
+
                     if wave[0][0] > wave[-1][-1]:
                         wave = np.concatenate(np.flipud(wave))
                         flux = np.concatenate(np.flipud(flux))
@@ -264,7 +268,7 @@ def read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, snrcol=0
                         snr = np.concatenate(snr)
                         nflux = np.concatenate(nflux)
                         echelle = np.concatenate(echelle)
-                                
+
             # hdu[1] exists, but without fields. Use other hdu[X]
             except AttributeError:
                 head = hdu[0].header
@@ -287,7 +291,7 @@ def read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, snrcol=0
                 if nfluxcol:
                     nflux = hdu[int(nfluxcol)].data
                 else:
-                    nflux = flux
+                    nflux = flux.copy()
                 # Check if the data is 1d arrays or matrix, sort the wavelength and adjust
                 if len(wave.shape) > 1:
                     if np.nanmean(wave[1] - wave[0]) < abs(wave[0][1] - wave[0][0]):
@@ -306,7 +310,7 @@ def read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, snrcol=0
                     o_echelle = np.zeros(wave.shape)
                     for n, o_wave in enumerate(wave):
                         idx_sort = np.argsort(o_wave)
-                        o_wave = o_wave[idx_sort]
+                        wave[n] = o_wave[idx_sort]
                         flux[n] = flux[n][idx_sort]
                         snr[n] = snr[n][idx_sort]
                         nflux[n] = nflux[n][idx_sort]
@@ -356,7 +360,7 @@ def read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, snrcol=0
                     snr = np.sqrt(flux)
                 snr = np.nan_to_num(snr, nan=0.01, posinf=0.01, neginf=0.01)
                 echelle = False
-                nflux = flux
+                nflux = flux.copy()
 
     # it is not a FITS file, treat it as an ASCII file
     except OSError:     
@@ -381,7 +385,7 @@ def read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, snrcol=0
         if nfluxcol:
             nflux = all_data[int(nfluxcol-1)]
         else:
-            nflux = flux            
+            nflux = flux.copy()            
 
         head = fits.PrimaryHDU().header
             
@@ -550,6 +554,8 @@ def norm_spectrum(wave, flux, snr=False, echelle=False, deg=2, \
             fnor[ordine] = oflux
         w_ord[i] = np.average(it_snr)
         i = i+1
+        
+
 
 
     if np.logical_and(fit, refine):
@@ -586,7 +592,7 @@ def norm_spectrum(wave, flux, snr=False, echelle=False, deg=2, \
 #######################################################
 #  Read the stellar mask, select elements and depths  #
 #######################################################
-def read_mask(maskname, unit='a', ele=False, no_ele=False, depths=(0.01,1),\
+def read_mask(maskname, unit='a', wavecol=1, fluxcol=2, ele=False, no_ele=False, depths=(0.01,1),\
               balmer=True, tellurics=True, wmin=False, wmax=False, invert=False, vacuum=True):
     """
     Read stellar mask (either binary mask, VALD file, or absorption spectrum/model)
@@ -597,6 +603,8 @@ def read_mask(maskname, unit='a', ele=False, no_ele=False, depths=(0.01,1),\
             'a': Angstrom (default)
             'n': nanometer
             'm': micron
+    wavecol = if tha mask is NOT a VALD mask, then the wavelength is in wavecol-1
+    fluxcol = if tha mask is NOT a VALD mask, then the wavelength is in fluxcol-1
     ele/no_ele = select elements to use or the exclude in a VALD mask
                  passing the elements as a character string in
                  VALD format, e.g. eles="Fe 1,Fe 2,H 1"
@@ -667,7 +675,7 @@ def read_mask(maskname, unit='a', ele=False, no_ele=False, depths=(0.01,1),\
             els = els[idxs]
     # Try ASCII/FITS file
     except (IndexError, ValueError, UnicodeDecodeError):
-        all_mask = read_spectrum(maskname, unit=unit)
+        all_mask = read_spectrum(maskname, unit=unit, wavecol=wavecol, fluxcol=fluxcol)
         wmask = all_mask['wave']
         dmask = all_mask['flux']
         if invert:
@@ -768,6 +776,10 @@ def rebin_spectrum(o_wave, o_flux, o_nflux, o_snr, wave_step):
     o_split_snr[np.isinf(o_split_snr)] = 1.0
     o_split_snr[np.isnan(o_split_snr)] = 1.0
     o_split_snr[o_split_snr<=0] = 1.0
+    #plt.plot(o_wave, o_nflux)
+    #plt.plot(new_wave, o_split_nflux)
+    #plt.show()
+    #plt.close()
 
     return new_wave, o_split_flux, o_split_nflux, o_split_snr
 
@@ -809,7 +821,7 @@ def smooth_spectrum(new_wave, o_split_nflux, fine_step=10):
 #  Compute Least-Squares Deconvolution  #
 #########################################
 def compute_lsd(spectrum, mask_data, vrange=(-200,200), \
-     step=1., cosmic=False, sigma=10, clean=False, verbose=False, output=False):
+     step=1., cosmic=False, sigma=3, clean=False, verbose=False, output=False):
     """
     Compute Least-Squares Deconvolution, as described in:
     Donati J.-F., et al., 1997, MNRAS 291, 658
@@ -877,6 +889,12 @@ def compute_lsd(spectrum, mask_data, vrange=(-200,200), \
                wmask*(1 + v_up/ckms) < new_wave[-5]))
         mask_wave = wmask[idxs]
         mask_depths = dmask[idxs]
+        
+        # Keep only unique values of mask wavelength
+        # and sort forincreasing wavelength
+        mask_wave, idx_mask = np.unique(mask_wave, return_index=True)
+        mask_depths = mask_depths[idx_mask]
+        
         if len(mask_wave) < 1:
             if verbose:
                 print(f"Order {o+1}: not enough mask lines, skipped.")
@@ -1021,7 +1039,7 @@ def compute_lsd(spectrum, mask_data, vrange=(-200,200), \
 #  Compute Cross-Correlation Function  #
 ########################################
 def compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=False, \
-     cosmic=False, sigma=10, clean=False, weights=False, verbose=False, output=False):
+     cosmic=False, sigma=3, clean=False, weights=False, verbose=False, output=False):
     """
     Compute Cross-Correlation Function
     ====================================================
@@ -1032,11 +1050,12 @@ def compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=F
           dictionary with keys "wave", "depths"
     vrange: velocity range in km/s of the resulting profile, given as tuple
     step: velocity step in km/s of the resulting profile
-    mask_spectrum: if False, the mask is a list of Dirac delta (wavelength and weight/depths)
-                   if True, the mask is a spectrum, with continuum and lines
-                     --> remember to flag the mask as invert in the read_mask procedure
-                         to switch the continuum from 1 to 0, and the lines from absorption
-                         to peaks
+    mask_spectrum:
+          if False, the mask is a list of Dirac delta (wavelength and weights)
+          if True, the mask is a spectrum, with continuum and lines
+                --> remember to flag the mask as invert in the read_mask procedure
+                    to switch the continuum from 1 to 0, 
+                    and the lines from absorption to peaks
     cosmic: remove cosmic rays from the spectra
     sigma: sigma clipping value for cosmic rays removal
     clean: clean the spectra to reduce noise and improve the profile
@@ -1061,6 +1080,7 @@ def compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=F
 
     # split the spectrum in echelle orders (if any) by looking for changes
     # in the wavelength step
+    
     split_wave, split_flux, split_nflux, split_snr = split_spectrum(spectrum)
 
     wmask = mask_data['wave']
@@ -1103,25 +1123,41 @@ def compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=F
             continue
 
         
+        # Keep only unique values of mask wavelength
+        # and sort forincreasing wavelength
+        mask_wave, idx_mask = np.unique(mask_wave, return_index=True)
+        mask_depths = mask_depths[idx_mask]
+        
+        
         mask_weight = len(mask_wave)
         ccf_weights.append(np.sum(mask_depths)*mask_weight)
 
         # Interpolate mask on finer wavelength range
+        # ONLY if the mask is a spectrum
+        if mask_spectrum:
+            intmask = interp1d(mask_wave, mask_depths, kind='cubic', \
+                  fill_value=(0, 0),\
+                  bounds_error=False)
+            mask_depths = intmask(new_wave)
+            mask_wave = new_wave
+            
 
-        idxs_wave = np.searchsorted(new_wave, mask_wave)
-        o_mask = np.zeros(new_wave.shape)
-        o_mask[idxs_wave] = mask_depths
-        o_mask_wave = new_wave.copy()
-        o_mask_wave[idxs_wave] = mask_wave
-        mask_wave = o_mask_wave
-        mask_depths = o_mask
+        #idxs_wave = np.searchsorted(new_wave, mask_wave)
+        #o_mask = np.zeros(new_wave.shape)
+        #o_mask[idxs_wave] = mask_depths
+        #o_mask_wave = new_wave.copy()
+        #o_mask_wave[idxs_wave] = mask_wave
+        #mask_wave = o_mask_wave
+        #mask_depths = o_mask
 
 
         ccf = np.zeros(len(rv_range))
         e_ccf = np.zeros(len(rv_range))
+        #print(rv_range)
         
         for n, rv in enumerate(rv_range):
 
+            #print(rv)
             rv_mask_wave = mask_wave*(1.0 + rv/ckms)
             rv_mask_depths = np.zeros(len(o_split_nflux))
             where = np.searchsorted(new_wave,rv_mask_wave)
@@ -1399,7 +1435,7 @@ def norm_profile(profiles, rvcol=1, prfcol=2, errcol=0, sfx='pfn', std='line_mea
         fitvalues = linfit(rvs[idx])
         norccfs[idx] = ccf/fitvalues
 
-        nors.append({'rv_range':rvs[idx], 'nprofile' : norccfs[idx], 'error': errs[idx], 'profile': ccfs[idx], 'header' : head})
+        nors.append({'rv_range':rvs[idx], 'nprofile' : norccfs[idx], 'error': errs[idx], 'profile': ccfs[idx], 'header' : heas[idx]})
         if sfx:
             pfn = '.'.join((os.path.splitext(profiles[idx])[0], sfx))
             outpfn = np.vstack((rvs[idx], norccfs[idx] , errs[idx]))

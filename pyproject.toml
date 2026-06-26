@@ -25,6 +25,7 @@ dependencies = [
   "matplotlib",
   "csaps",
   "specutils",
+  "lmfit",
 ]
 
 #[tool.hatch.build.targets.sdist]

@@ -16,91 +16,153 @@ Written by Monica Rainer
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
     
 ====================================================
-Functions:
-- read_wave_e2ds(header)
-    Read the wavelength solution in the e2ds spectra of:
-    HARPS - HARPS-N - SOPHIE from the old DRS (before 2025).
 
-- read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, \
-    snrcol=0, echcol=0, errcol=0, vacuum=True):
+----------------------------------------------
+Documentation
+----------------------------------------------
+
+Use the built-in ``help`` function to view a function's docstring::
+
+  >>> help(pa.compute_ccf)
+  ... # doctest: +SKIP
+  
+----------------------------------------------
+Available Functions
+----------------------------------------------
+
+The functions available in PARVATI may be divided in categories
+according to their use:
+1. Spectra ingestion and preparation
+2. Single line extraction or mean line profile computation
+3. Line analysis
+4. Auxiliary functions
+
+1. Spectra ingestion and preparation
+----------------------------------------------
+read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, \
+              nfluxcol=0, snrcol=0, echcol=0, errcol=0, vacuum=True):
     Read the spectrum from an ASCII or FITS file
-
-- norm_spectrum(wave, flux, snr=False, echelle=False, deg=2, \
-    n_ord=False, refine=False, output=False)
+    
+norm_spectrum(wave, flux, snr=False, echelle=False, deg=2, \
+              n_ord=False, refine=False, output=False)
     Automatically normalise a stellar spectrum
 
-- read_mask(maskname, unit='a', ele=False, no_ele=False, depths=(0.01,1),\
-              balmer=True, tellurics=True, wmin=False, wmax=False, invert=False, vacuum=True)
+2. Single line extraction or mean line profile computation
+----------------------------------------------
+read_mask(maskname, unit='a', wavecol=1, fluxcol=2, ele=False,\
+          no_ele=False, depths=(0.01,1), balmer=True, \
+          tellurics=True, wmin=False, wmax=False, invert=False, \
+          vacuum=True)
     Read stellar mask (either binary mask, VALD file, or spectrum)
 
-- split_spectrum(spectrum)
-     Auxiliary function for compute_lsd/compute_ccf
-
-- rebin_spectrum(o_wave, o_flux, o_nflux, o_snr, wave_step)
-     Auxiliary function for compute_lsd
-
-- remove_cosmics(len_vrange, o_split_nflux, sigma)
-     Auxiliary function for compute_lsd/compute_ccf
-
-- smooth_spectrum(new_wave, o_split_nflux, fine_step=10)
-     Auxiliary function for compute_lsd/compute_ccf
-     
-- compute_lsd(spectrum, mask_data, vrange=(-200,200), \
-     step=1., cosmic=False, sigma=10, clean=False, verbose=False, output=False)
+compute_lsd(spectrum, mask_data, vrange=(-200,200), \
+           step=1., cosmic=False, sigma=3, clean=False, \
+           verbose=False, output=False)
     Compute the mean line profile using the Least-Squares Deconvolution
     Donati J.-F., et al., 1997, MNRAS 291, 658
     Kochukhov O., et al., 2010, A&A 524, 5
-    
-- compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=False, \
-     cosmic=False, sigma=10, clean=False, weights=False, verbose=False, output=False)
-    Compute the mean line profile using  Cross-Correlation Function
 
-- show_ccf(rvs,ccfs)
-    Auxiliary function
-    Plot line profiles and define line limits
+compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., \
+           mask_spectrum=False, cosmic=False, sigma=3, clean=False, \
+           weights=False, verbose=False, output=False)
+    Compute the mean line profile using the Cross-Correlation method
 
-- extract_line(spectrum, unit='a', w0=6562.801, vrange=(-200,200), step=0.5, verbose=False, output=False)
+extract_line(spectrum, unit='a', w0=6562.801, vrange=(-200,200), \
+            step=1., verbose=False, output=False)
     Extract a single line from a spectrum at w0 as a mean line profile
+    convert the wavelength to RVs using w0 as RV=0
+    Extract only the region inside vrange, with the required step
 
-- norm_profile(profiles, rvcol=1, prfcol=2, errcol=0, sfx='pfn', std='line_mean_std', limits=False)
+3. Line analysis
+----------------------------------------------
+
+norm_profile(profiles, rvcol=1, prfcol=2, errcol=0, sfx='pfn', \
+             std='line_mean_std', limits=False)
     Normalise the profiles to account for continuum problems.
 
-- func_rot(x,a,x0,xl,LD=0.6)
-    Fitting function
-    Rotational broadening function, from:
-    Gray, D. F. 2008, The Observation and Analysis of Stellar Photospheres
+fit_profile(vrad, flux, errs=0, fit='g', rv0=None, width=10, \
+            ld=0.6, resolution=0, component=1)
+    Fit a line profile
 
-- gaussian(x,x0,s,F0,K):
-    Fitting function
-    Gaussian function
-
-- lorentzian(x, x0, g, F0, K)
-    Fitting function
-    Lorentzian function
-
-- voigt_function(x, x0, g, s, F0, K)
-    Fitting function
-    Voigt function    
-
-- fit_profile(vrad, flux, errs=0, gauss=True, lorentz=True, voigt=True, rot=True, rv0=0, width=10, ld=0.6)
-    Fit a mean line profile
-
-- moments(rvs, ccf, errs=0, limits=False, normalise=True)
+moments(rv_range, ccf, errs=0, limits=False, normalise=True)
     Compute the line moments
     Briquet M., Aerts C., 2003, A&A 398, 687
     errors: Teague R., 2019, Res. Notes AAS 3, 74
 
-- bisector(rv_range, flux, errs=0, limits=False)
+bisector(rv_range, flux, errs=0, limits=False)
     Compute the bisector of a stellar line profile
     Baştürk Ö., et al., 2011, A&A 535, 17
 
-- find_shift_fft(y1, y2)
-    Auxiliary function for fourier
-
-- fourier(rv_range, flux, errs=False, limits=False, ld=0.6)
-    Compute the Fourier transform
+fourier(rv_range, flux, errs=False, limits=False, ld=0.6)
+    Compute the Fourier transform of the line
     The vsini is derived using the empirical formula from
     Dravins, D., Lindegren, L., & Torkelsson, U. 1990, A&A, 237, 137
+
+4. Auxiliary functions
+----------------------------------------------
+read_wave_e2ds(header)
+    Auxiliary function for read_spectrum
+    Read the wavelength solution of the e2ds spectra
+    of HARPS/HARPS-N/SOPHIE
+
+split_spectrum(spectrum)
+     Auxiliary function for compute_lsd/compute_ccf
+     Split the spectrum (dictionary format) according\
+     to gaps or overlaps in the wavelength
+
+rebin_spectrum(o_wave, o_flux, o_nflux, o_snr, wave_step)
+     Auxiliary function for compute_lsd
+     Rebin the spectrum on the wave_step array
+
+remove_cosmics(len_vrange, o_split_nflux, sigma)
+     Auxiliary function for compute_lsd/compute_ccf
+     Remove cosmics via sigma clipping
+
+smooth_spectrum(new_wave, o_split_nflux, fine_step=10)
+     Auxiliary function for compute_lsd/compute_ccf
+     Clean the spectrum with a smoothing spline
+     
+show_ccf(rvs, ccfs)
+    Auxiliary function
+    Plot line profiles and define line limits
+
+rotational(x, x0, s, F0, K, ld=0.6)
+    Fitting function
+    Rotational broadening function, from:
+    Gray, D. F. 2008, The Observation and Analysis of Stellar Photospheres
+
+gaussian(x, x0, s, F0, K, res=0)
+    Fitting function
+    Gaussian function
+    
+supergaussian(x, x0, s, F0, K, p)
+    Fitting function.
+    Supergaussian function
+
+agaussian(x, x0, s, g, F0, K, res=0)
+    Fitting function.
+    Asymmetric Gaussian function
+
+lorentzian(x, x0, g, F0, K, res=0)
+    Fitting function
+    Lorentzian function
+
+voigt(x, x0, s, g, F0, K, res=0)
+    Fitting function
+    Voigt function  
+
+instrumental(x, res_x0=0, res=115000)
+    Auxiliary function
+    Instrumental Gaussian profile
+
+fit_values(function, prefix, result, profile)
+    Auxiliary function
+    Estimate relevant parameters from fit, with errors
+    Return a dictionary
+
+find_shift_fft(y1, y2)
+    Auxiliary function for fourier
+
 
 """
 
@@ -115,19 +177,22 @@ from astropy.stats import sigma_clip
 from astropy.io import fits
 import astropy.units as u
 
-from specutils.utils.wcs_utils import air_to_vac
-
 from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
 from scipy.fftpack import fft,fftfreq,ifft
 from scipy.special import wofz
+from scipy.special import erf
 from scipy.integrate import simpson, trapezoid
 from scipy.stats import linregress
-
+from scipy.signal import find_peaks
 
 from matplotlib import pyplot as plt
 
 from csaps import csaps as smooth_spline
+
+from specutils.utils.wcs_utils import air_to_vac
+
+from lmfit import Model, CompositeModel
 
 ckms = const.c.to('km/s').value
 
@@ -165,6 +230,7 @@ def read_wave_e2ds(header):
     for i in range(len(ww)):
         ww[i] = np.poly1d(ll_coeff[i][::-1])(x)
         echelle[i] = echelle[i] + i + 1
+    
     return ww, echelle
 
 
@@ -346,6 +412,11 @@ def read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, snrcol=0
                 head = hdu[0].header
                 try:
                     wave, echelle = read_wave_e2ds(head)
+                    wave = np.concatenate(wave)
+                    flux = np.concatenate(flux)
+                    #print(echelle)
+                    echelle = np.concatenate(echelle)
+                    #print(echelle)
                 except KeyError:
                     try:
                         start = head['CRVAL1']
@@ -359,7 +430,7 @@ def read_spectrum(filename, unit='a', wavecol=1, fluxcol=2, nfluxcol=0, snrcol=0
                 with np.errstate(all='ignore'):
                     snr = np.sqrt(flux)
                 snr = np.nan_to_num(snr, nan=0.01, posinf=0.01, neginf=0.01)
-                echelle = False
+                #echelle = False
                 nflux = flux.copy()
 
     # it is not a FITS file, treat it as an ASCII file
@@ -1348,6 +1419,8 @@ def extract_line(spectrum, unit='a', w0=6562.801, vrange=(-200,200), step=1.0, v
 def norm_profile(profiles, rvcol=1, prfcol=2, errcol=0, sfx='pfn', std='line_mean_std', limits=False):
     """
     Normalise the profiles to account for continuum problems.
+    Additionally, it creates a file and PNG image of the st. dev.
+    of all the profiles versus the average profile
     ====================================================
     Input parameters:
     profiles : list of profile ASCII filenames (rv, flux, [error])
@@ -1476,95 +1549,557 @@ def norm_profile(profiles, rvcol=1, prfcol=2, errcol=0, sfx='pfn', std='line_mea
 ############################
 # Define fitting functions #
 ############################
-def func_rot(x,c,a,x0,xl,ld=0.6):
+def rotational(x,x0,s,F0,K,ld=0.6):
     """
     Auxiliary function.
     Rotational broadening function, from:
     Gray, D. F. 2008, The Observation and Analysis of Stellar Photospheres
     x: dataset
-    c: continuum level
-    a: depth of the line (initial guess value)
     x0: center of the line (RV, initial guess value)
-    xl: width of the line (vsini, initial guess value))
+    s: width of the line (vsini, initial guess value)
+    F0: depth of the line (initial guess value)
+    K: continuum level
     ld: linear limb darkening, default value 0.6
+    NO instrumental broadening considered
     """
-    condlist = [(x-x0)**2 < xl**2, (x-x0)**2 > xl**2]
+    condlist = [(x-x0)**2 <= s**2, (x-x0)**2 > s**2]
 
-    funclist = [lambda x:c+a*( 2*(1-ld)*(np.sqrt(1-((x-x0)/(xl))**2)) + \
-        0.5*np.pi*ld*(1-((x-x0)/(xl))**2))/(np.pi*xl*(1-ld/3)), lambda x:c]
+    funclist = [lambda x:K+F0*( 2*(1-ld)*(np.sqrt(1-((x-x0)/(s))**2)) + \
+        0.5*np.pi*ld*(1-((x-x0)/(s))**2))/(np.pi*s*(1-ld/3)), lambda x:K]
 
     return np.piecewise(x, condlist, funclist)
 
-def gaussian(x,x0,s,F0,K):
+def gaussian(x,x0,s,F0,K, res=0):
     """
     Auxiliary function.
     Gaussian function
     x: dataset
     x0: center of the line (RV, initial guess value)
-    s: Gaussian sigma (initial guess value))
+    s: Gaussian sigma (initial guess value)
     F0: depth of the line (initial guess value)
     K: continuum mean value (initial guess value)
+    res: instrumental resolution
     NOTE: FWHM of the Gaussian is 2*np.sqrt(2*np.log(2))*s
     """
-    return K - F0*np.exp(-((x-x0)**2)/(2*(s**2)))
+    
+    if res:
+        res_fwhm = ckms/res
+        fwhm = s * np.sqrt(8*np.log(2))
 
+        res_s = res_fwhm/np.sqrt(8*np.log(2))
+        s_res2 = s**2+res_s**2
 
-def lorentzian(x, x0, g, F0, K):
+        F0_res = F0 * fwhm/np.sqrt(res_fwhm**2 + fwhm**2)
+        
+        return K + F0_res*np.exp(-((x-x0)**2)/(2*s_res2))
+    
+    else:
+        return K + F0*np.exp(-((x-x0)**2)/(2*(s**2)))
+    
+def supergaussian(x,x0,s,F0,K,p):
+    """
+    Auxiliary function.
+    Supergaussian function
+    x: dataset
+    x0: center of the line (RV, initial guess value)
+    s: Gaussian sigma (initial guess value)
+    F0: depth of the line (initial guess value)
+    K: continuum mean value (initial guess value)
+    p: supergaussian exponent
+    NOTE: FWHM of the Gaussian is 2*np.sqrt(2*np.log(2))*s
+    There is no simple mathematical way to include the
+    effect of the resolution
+    """
+    return K + (F0/(np.sqrt(2*np.pi)*s)) * np.exp(-abs(x-x0)**p / (2*s**p))
+
+    
+def agaussian(x,x0,s,g,F0,K, res=0):
+    """
+    Auxiliary function.
+    Asymmetric Gaussian function
+    x: dataset
+    x0: center of the line (RV, initial guess value)
+    s: Gaussian sigma, left (initial guess value)
+    g: Gaussian sigma, right (initial guess value)
+    F0: depth of the line (initial guess value)
+    K: continuum mean value (initial guess value)
+    res: instrumental resolution
+    NOTE: FWHM of the Gaussian is 2*np.sqrt(2*np.log(2))*s
+    """
+    
+    condlist = [x <= x0, x > x0]
+    
+    if res:
+        res_fwhm = ckms/res
+        res_s = res_fwhm/np.sqrt(8*np.log(2))
+        
+        fwhm_s = s * np.sqrt(8*np.log(2))
+        fwhm_g = g * np.sqrt(8*np.log(2))
+
+        s_res2 = s**2+res_s**2
+        g_res2 = g**2+res_s**2
+        
+        fwhm_s_res = np.sqrt(fwhm_s**2 + res_fwhm**2)
+        fwhm_g_res = np.sqrt(fwhm_g**2 + res_fwhm**2)
+        
+        F0_res = F0 * (fwhm_s + fwhm_g)/(fwhm_s_res + fwhm_g_res)
+        
+        funclist = [lambda x:K + F0_res*np.exp(-((x-x0)**2)/(2*s_res2)), \
+                lambda x:K + F0_res*np.exp(-((x-x0)**2)/(2*g_res2))]
+    
+    else:
+
+        funclist = [lambda x:K + F0*np.exp(-((x-x0)**2)/(2*(s**2))), \
+                lambda x:K + F0*np.exp(-((x-x0)**2)/(2*(g**2)))]
+    
+
+    return np.piecewise(x, condlist, funclist)
+
+def lorentzian(x, x0, g, F0, K, res=0):
     """
     Auxiliary function.
     Lorentzian function
     x: dataset
     x0: center of the line (RV, initial guess value)
-    g: Lorentzian width (initial guess value))
+    g: Lorentzian width (initial guess value)
     F0: depth of the line (initial guess value)
     K: continuum mean value (initial guess value)
+    res: instrumental resolution
     NOTE: FWHM of the Lorentzian is 2*g
     Equation taken from https://www.linkedin.com/pulse/fitting-spectral-lines-gaussian-versus-lorentzian-voigt-aulin
     """
-    return K + F0 * g**2 / ( g**2 + ( x - x0 )**2)  
+    if res:
+        res_fwhm = ckms/res
+        res_s = res_fwhm/np.sqrt(8*np.log(2))
+        lor_fwhm = 2*g
+        
+        #obs_fwhm = 0.5346 * lor_fwhm  + np.sqrt( 0.2166 * lor_fwhm**2 + res_fwhm**2)
+        #F0_res = F0 *(lor_fwhm/obs_fwhm) * 1/(1 + 0.1812*(1 - (lor_fwhm/obs_fwhm)))
+        
+        F0_res = F0 * np.pi * g
+        
+        return K + F0_res * np.real(wofz((x - x0 + 1j*g)/ (res_s *np.sqrt(2)) )) / (res_s * np.sqrt(2*np.pi))    
+    
+    else:
+        return K + F0 * g**2 / ( g**2 + ( x - x0 )**2)  
     
 
-def voigt_function(x, x0, g, s, F0, K):    
+def voigt(x, x0, s, g, F0, K, res=0):    
     """
     Auxiliary function.
     Voigt function
     x: dataset
     x0: center of the line (RV, initial guess value)
-    g: Lorentzian width (initial guess value))
-    s: Gaussian sigma (initial guess value))
+    s: Gaussian sigma (initial guess value)
+    g: Lorentzian width (initial guess value)
     F0: depth of the line (initial guess value)
     K: continuum mean value (initial guess value)
+    res: instrumental resolution
     NOTE: FWHM of the Voigt is 0.5346 * fL  + np.sqrt( 0.2166 * fL**2 + fG**2)
     where fL = 2*g
     and fG = 2*np.sqrt(2*np.log(2))*s
     Equation taken from https://www.linkedin.com/pulse/fitting-spectral-lines-gaussian-versus-lorentzian-voigt-aulin
     """
+    if res:
+        res_fwhm = ckms/res
+        res_s = res_fwhm/np.sqrt(8*np.log(2))
+        s_res = np.sqrt(s**2+res_s**2)
+                
+        return K + F0 * np.real(wofz((x - x0 + 1j*g)/s_res/np.sqrt(2))) / s_res /np.sqrt(2*np.pi) 
+    
+    else:
+        return K + F0 * np.real(wofz((x - x0 + 1j*g)/s/np.sqrt(2))) / s /np.sqrt(2*np.pi) 
 
-    return K + F0 * np.real(wofz((x - x0 + 1j*g)/s/np.sqrt(2))) / s /np.sqrt(2*np.pi) 
+def instrumental(x, res_x0=0, res=115000):
+    """
+    Auxiliary function
+    Resolution profile
+    Gaussian function with FWHM = ckms/R (km/s)
+    x: dataset
+    res_x0: center of the line (RV)
+    IMPORTANT: the instrumental profile is always
+    centered at zero, this is only for visibility's sake
+    res: instrumental resolution --> Gaussian sigma, FIXED VALUE
+    """
+    fwhm = ckms/res
+    s = fwhm/np.sqrt(8*np.log(2))
+    return (1/(s*np.sqrt(2*np.pi)))*np.exp(-((x-res_x0)**2)/(2*(s**2)))
+
+
+def fit_values(function, prefix, result, profile):
+    """
+    Auxiliary function
+    Estimate relevant parameters from fit, with errors
+    Return a dictionary
+    """
+
+    vrad = result.userkws['x']
+    #print(result.fit_report())
+      
+    # GAUSSIAN
+    if function == 'gaussian':        
+        if prefix is None:
+            fit_val = {\
+                      'profile' : 1-profile,\
+                      'profile_nores' : 1-profile,\
+                      'rv': 0, \
+                      'e_rv': 0,\
+                      'width': 0, \
+                      'e_width': 0, \
+                      'EW': 0, \
+                      'e_EW': 0\
+                      }
+        else:
+            try:
+                gauss_center = result.uvars[f"{prefix}x0"]
+                gauss_sigma = result.uvars[f"{prefix}s"]
+                gauss_depth = result.uvars[f"{prefix}F0"]
+                gauss_continuum = result.uvars[f"{prefix}K"]
+                gauss_res = result.uvars[f"{prefix}res"]
+            except AttributeError:
+                gauss_center = ufloat(0,0)
+                gauss_sigma = ufloat(0,0)
+                gauss_depth = ufloat(0,0)
+                gauss_continuum = ufloat(0,0)
+                gauss_res = ufloat(0,0)
+
+            #print(f"{prefix} {gauss_res.n}:\n center={gauss_center}\n sigma={gauss_sigma}")
+        
+            # 1. Compute EW: Hg*sigma*sqrt(2*np.pi)
+
+            EW = gauss_depth*gauss_sigma*np.sqrt(2*np.pi)
+            
+
+            fit_val = {\
+                      'profile' : 1-profile,\
+                      'profile_nores' : 1- gaussian(vrad, gauss_center.n, gauss_sigma.n, gauss_depth.n, gauss_continuum.n),\
+                      'rv': gauss_center.n, \
+                      'e_rv': gauss_center.s,\
+                      'width': float(gauss_sigma.n*np.sqrt(8*np.log(2))), \
+                      'e_width': float(gauss_sigma.s*np.sqrt(8*np.log(2))), \
+                      'EW': EW.n, \
+                      'e_EW': EW.s\
+                      }
+
+
+    # SUPERGAUSSIAN    
+    elif function == 'supergaussian':
+        if prefix is None:
+            fit_val = {\
+                      'profile' : 1-profile,\
+                      'profile_nores' : 1-profile,\
+                      'rv': 0, \
+                      'e_rv': 0,\
+                      'width': 0, \
+                      'e_width': 0, \
+                      'EW': 0, \
+                      'e_EW': 0\
+                      }
+        else:
+            try:
+                gauss_center = result.uvars[f"{prefix}x0"]
+                gauss_sigma = result.uvars[f"{prefix}s"]
+                gauss_depth = result.uvars[f"{prefix}F0"]
+                gauss_continuum = result.uvars[f"{prefix}K"]
+                gauss_super = result.uvars[f"{prefix}p"]
+                #gauss_res = result.uvars[f"{prefix}res"]
+            except AttributeError:
+                gauss_center = ufloat(0,0)
+                gauss_sigma = ufloat(0,0)
+                gauss_depth = ufloat(0,0)
+                gauss_continuum = ufloat(0,0)
+                gauss_super = ufloat(0,0)
+                #gauss_res = 0
+            #print(f"{prefix}:\n center={gauss_center}\n sigma={gauss_sigma}")
+        
+            # Compute EW: area beneath the fit
+            # inside 3 sigma range
+            idx1 = np.searchsorted(vrad, gauss_center.n-3*gauss_sigma.n)
+            idx2 = np.searchsorted(vrad, gauss_center.n+3*gauss_sigma.n, side='right')
+            idx2 = min(idx2,len(vrad)-1)
+            
+            EW = simpson(profile[idx1:idx2]-gauss_continuum.n, x=vrad[idx1:idx2]) # equivalent width
+            std_EW = np.sqrt(np.nansum(result.eval_uncertainty(x=vrad[idx1:idx2])**2))
+            h_v = abs(np.nanmean(np.diff(vrad)))
+            e_EW = h_v*np.sqrt(len(vrad[idx1:idx2]))*std_EW
+            #EW = 0
+            #e_EW = 0
+
+            fit_val = {\
+                      'profile' : 1-profile,\
+                      'profile_nores' : 1-profile,\
+                      'rv': gauss_center.n, \
+                      'e_rv': gauss_center.s,\
+                      'width': float(gauss_sigma.n*np.sqrt(8*np.log(2))), \
+                      'e_width': float(gauss_sigma.s*np.sqrt(8*np.log(2))), \
+                      'EW': float(EW), \
+                      'e_EW': float(e_EW)\
+                      }
+
+    # ASYMMETRIC GAUSSIAN    
+    elif function == 'agaussian':
+        if prefix is None:
+            fit_val = {\
+                      'profile' : 1-profile,\
+                      'profile_nores' : 1-profile,\
+                      'rv': 0, \
+                      'e_rv': 0,\
+                      'width': 0, \
+                      'e_width': 0, \
+                      'EW': 0, \
+                      'e_EW': 0\
+                      }
+        else:
+            try:
+                gauss_center = result.uvars[f"{prefix}x0"]
+                gauss_sigma = result.uvars[f"{prefix}s"]
+                gauss_asy = result.uvars[f"{prefix}g"]
+                gauss_depth = result.uvars[f"{prefix}F0"]
+                gauss_continuum = result.uvars[f"{prefix}K"]
+                gauss_res = result.uvars[f"{prefix}res"]
+            except AttributeError:
+                gauss_center = ufloat(0,0)
+                gauss_sigma = ufloat(0,0)
+                gauss_asy = ufloat(0,0)
+                gauss_depth = ufloat(0,0)
+                gauss_continuum = ufloat(0,0)
+                gauss_res = ufloat(0,0)
+
+            #print(f"{prefix} {gauss_res.n}:\n center={gauss_center}\n sigma={gauss_sigma}")
+        
+            # Compute EW: area beneath the fit
+            # inside 3 sigma range
+            EW1 = gauss_depth*gauss_sigma*np.sqrt(2*np.pi)
+            EW2 = gauss_depth*gauss_asy*np.sqrt(2*np.pi)
+            EW = 0.5*(EW1+EW2)
+
+
+            fit_val = {\
+                      'profile' : 1-profile,\
+                      'profile_nores' : 1-agaussian(vrad, gauss_center.n, gauss_sigma.n, gauss_asy.n, gauss_depth.n, gauss_continuum.n),\
+                      'rv': gauss_center.n, \
+                      'e_rv': gauss_center.s,\
+                      'width': float(gauss_sigma.n*np.sqrt(8*np.log(2))), \
+                      'e_width': float(gauss_sigma.s*np.sqrt(8*np.log(2))), \
+                      'EW': EW.n, \
+                      'e_EW': EW.s\
+                      }
+
+    # LORENTZIAN    
+    elif function == 'lorentzian':
+        if prefix is None:
+            fit_val = {\
+                      'profile' : 1-profile,\
+                      'profile_nores' : 1-profile,\
+                      'rv': 0, \
+                      'e_rv': 0,\
+                      'width': 0, \
+                      'e_width': 0, \
+                      'EW': 0, \
+                      'e_EW': 0\
+                      }
+        else:
+            try:
+                lor_center = result.uvars[f"{prefix}x0"]
+                lor_gamma = result.uvars[f"{prefix}g"]
+                lor_depth = result.uvars[f"{prefix}F0"]
+                lor_continuum = result.uvars[f"{prefix}K"]
+                lor_fwhm = 2 * lor_gamma
+                lor_res = result.uvars[f"{prefix}res"]
+            except AttributeError:
+                lor_center = ufloat(0,0)
+                lor_gamma = ufloat(0,0)
+                lor_depth = ufloat(0,0)
+                lor_continuum = ufloat(0,0)
+                lor_fwhm = ufloat(0,0)
+                lor_res = ufloat(0,0)
+
+            #print(f"{prefix} {lor_res.n}:\n center={lor_center}\n gamma={lor_gamma}")        
+            # Compute EW: lor_depth * np.pi * lor_gamma
+            # equal to: (np.pi/2)*lor_depth*fwhm
+
+            EW = lor_depth * np.pi * lor_gamma
+
+
+            fit_val = {\
+                      'profile' : 1-profile,\
+                      'profile_nores' : 1-lorentzian(vrad, lor_center.n, lor_gamma.n, lor_depth.n, lor_continuum.n),\
+                      'rv': lor_center.n, \
+                      'e_rv': lor_center.s,\
+                      'width': lor_fwhm.n, \
+                      'e_width': lor_fwhm.s, \
+                      'EW': EW.n, \
+                      'e_EW': EW.s\
+                      }
+
+    # VOIGT FUNCTION    
+    elif function == 'voigt':
+        if prefix is None:
+            fit_val = {\
+                      'profile' : 1-profile,\
+                      'profile_nores' : 1-profile,\
+                      'rv': 0, \
+                      'e_rv': 0,\
+                      'width': 0, \
+                      'e_width': 0, \
+                      'EW': 0, \
+                      'e_EW': 0\
+                      }
+        else:
+            try:
+                voigt_center = result.uvars[f"{prefix}x0"]
+                voigt_sigma = result.uvars[f"{prefix}s"]
+                voigt_gamma = result.uvars[f"{prefix}g"]
+                voigt_depth = result.uvars[f"{prefix}F0"]
+                voigt_continuum = result.uvars[f"{prefix}K"]
+                voigt_res = result.uvars[f"{prefix}res"]
+
+            except AttributeError:
+                voigt_center = ufloat(0,0)
+                voigt_sigma = ufloat(0,0)
+                voigt_gamma = ufloat(0,0)
+                voigt_depth = ufloat(0,0)
+                voigt_continuum = ufloat(0,0)
+                voigt_res = 0
+            #print(f"{prefix} {voigt_res.n}:\n center={voigt_center}\n sigma={voigt_sigma}\n gamma={voigt_gamma}")        
+
+            fwhm_lor = 2*voigt_gamma
+            fwhm_gauss = np.sqrt(8*np.log(2))*voigt_sigma
+            fwhm_voigt = 0.5346 * fwhm_lor  + umath.sqrt( 0.2166 * fwhm_lor**2 + fwhm_gauss**2)
+
+            fit_val = {\
+                      'profile' : 1-profile,\
+                      'profile_nores' : 1-voigt(vrad, voigt_center.n, voigt_sigma.n, voigt_gamma.n, voigt_depth.n, voigt_continuum.n),\
+                      'rv': voigt_center.n, \
+                      'e_rv': voigt_center.s,\
+                      'width': fwhm_voigt.n, \
+                      'e_width': fwhm_voigt.s, \
+                      'EW': voigt_depth.n, \
+                      'e_EW': voigt_depth.s\
+                      }
+
+    # ROTATIONAL FUNCTION    
+    elif function == 'rotational':
+        if prefix is None:
+            fit_val = {\
+                      'profile' : 1-profile,\
+                      'profile_nores' : 1-profile,\
+                      'rv': 0, \
+                      'e_rv': 0,\
+                      'width': 0, \
+                      'e_width': 0, \
+                      'EW': 0, \
+                      'e_EW': 0\
+                      }
+        else:
+            try:
+                rot_center = result.uvars[f"{prefix}x0"]
+                rot_sigma = result.uvars[f"{prefix}s"]
+                rot_depth = result.uvars[f"{prefix}F0"]
+                rot_continuum = result.uvars[f"{prefix}K"]
+
+            except AttributeError:
+                rot_center = ufloat(0,0)
+                rot_sigma = ufloat(0,0)
+                rot_depth = ufloat(0,0)
+                rot_continuum = ufloat(0,0)
+            #print(f"{prefix}:\n center={rot_center}\n vsini={rot_sigma}")        
+                    
+            # Compute EW: area beneath the fit
+            # inside 3 sigma range
+            idx1 = np.searchsorted(vrad, rot_center.n-rot_sigma.n)
+            idx2 = np.searchsorted(vrad, rot_center.n+rot_sigma.n, side='right')
+            idx2 = min(idx2,len(vrad)-1)
+            
+            EW = simpson(profile[idx1:idx2]-rot_continuum.n, x=vrad[idx1:idx2]) # equivalent width
+            std_EW = np.sqrt(np.nansum(result.eval_uncertainty(x=vrad[idx1:idx2])**2))
+            h_v = abs(np.nanmean(np.diff(vrad)))
+            e_EW = h_v*np.sqrt(len(vrad[idx1:idx2]))*std_EW
+
+            fit_val = {\
+                      'profile' : 1-profile,\
+                      'profile_nores' : 1-profile,\
+                      'rv': rot_center.n, \
+                      'e_rv': rot_center.s,\
+                      'width': rot_sigma.n, \
+                      'e_width': rot_sigma.s, \
+                      'EW': EW, \
+                      'e_EW': e_EW\
+                      }
+    
+    return fit_val
 
 ##################################
 # Fitting the mean line profiles #
 ##################################
-def fit_profile(vrad, flux, errs=0, gauss=True, lorentz=True, voigt=True, rot=True, rv0=0, width=10, ld=0.6):
+def fit_profile(vrad, flux, errs=0, fit='g', rv0=None, width=10, ld=0.6, resolution=0, component=1):
     """
     Fit a mean line profile
     ====================================================
     Input parameters:
     vrad: vrad range of the profile
     flux: profile values
-    gauss: fit with a Gaussian
-    lorentz: fit with a Lorentzian
-    voigt: fit with a Voigt profile
-    rot: fit with a rotational profile
-    rv0: initial guess value of RV in km/s
+    errs: error values, if any. If given, they will be used for the fit 
+    fit: fit function ([g]aussian/[l]orentzian/[v]oigt/[r]otational/
+                       [s]upergaussian/[a]symmetric gaussian)
+         Gaussian is the default value, if an uncorrect value for the fitting
+         function is passed, a Gaussian fit will be used 
+         -> if there is more than one component, it is possible to fit
+            different function by listing the name seprated by a comma,
+            e.g., g,l,r
+            IMPORTANT: either specifiy a single function for all components
+            OR set a function for each component, no in-between numbers
+    resolution: if given, the fit will consider a convolution with
+                a Gaussian with FWHM equal the resolution
+    component: how many components to be independently fitted 
+               (for binary/multiple system) 
+    rv0: initial guess value of RV in km/s 
+         --> if there is more than one component, it is possible to
+              list all guess values separated by a comma, e.g., 0,10,30
+              otherwise the same value will be used for all components
     width = initial guess value of vsini in km/s
+         --> if there is more than one component, it is possible to
+              to list all guess values separated by a comma, e.g., 10,5,80
+              otherwise the same value will be used for all components
     ld = linear limb darkening (for rotational fit)
-    Gaussian fit: compute also the EW of the normalised Gaussian
-    READ THIS: https://www.linkedin.com/pulse/fitting-spectral-lines-gaussian-versus-lorentzian-voigt-aulin
+         --> if there is more than one component, it is possible to 
+              list all guess values separated by a comma, e.g., 0.6,0.4,0.8
+              otherwise the same value will be used for all components
+
+    output: a dictionary with global and specific result:
+            - report: the lmfit report of the fit
+            - profile: the global fit profile, including all the components 
+              and the resolution 
+            - for each component, there is a specific dictionary key, starting 
+              with 0 as the first (default) component:
+            - for each component (e.g, result[0]), there are dictionaries for 
+              each fitting functions, that will contain empty/constant values 
+              aside for the used function
+            Example of the output structure:
+            result = {'report' : lmfit report
+                      'profile' : global fit profile
+                      '0' : {'profile' : fit profile of the first component
+                             'profile_nores' : fit profile deconvolved 
+                                               for the resolution
+                             'rv': RV derived from the fit
+                             'e_rv': error on the RV derived from the fit
+                             'width': width of the profile (vsini or FWHM)
+                             'e_width': error on the width of the profile
+                             'EW': equivalent width of the fitting function
+                             'e_EW': error on the equivalent width
+                      }
+    
     """
-    massimo = np.amax(flux)
-    minimo = np.amin(flux)
+    massimo = float(np.amax(1-flux))
+    minimo = float(np.amin(1-flux))
     f_0 = massimo-minimo
+    f_0 = massimo
+    #K_guess = float(np.amax(minimo, 0))
+    K_guess = 0
+    K_guess = minimo
+    
+    minrv = float(np.nanmin(vrad))
+    maxrv = float(np.nanmax(vrad))
 
     if np.sum(errs):
         best = np.nanmin(errs[errs>0])
@@ -1576,172 +2111,359 @@ def fit_profile(vrad, flux, errs=0, gauss=True, lorentz=True, voigt=True, rot=Tr
         errs = np.ones(len(flux))
         err_abs=False
 
-
-    p_rot = [0.,f_0,rv0,width,ld]
-    p_gauss = [rv0,width,f_0,massimo]
-    p_voigt = [rv0,width,width,f_0,massimo]
-    epsilon = 0.00001  # force the LD value to stay as it is
-    if rot:
-        try:
-            popt_rot,pcov_rot = curve_fit(func_rot, vrad, 1-flux, p0=p_rot, sigma=errs, absolute_sigma=err_abs, bounds=((-0.1,0,-np.inf,0,ld-epsilon),(np.inf,np.inf,np.inf,np.inf,ld+epsilon)))
-            # the bounds let RV vary as it wants, width to stay positive, 
-            # the continuum and absorption are suitable for a inverted normalized line
-            # (continuum around zero and absorption --> emission positive)
-        except (ValueError, RuntimeError):
-            popt_rot = np.zeros(len(p_rot))
-            pcov_rot = np.zeros((len(p_rot),len(p_rot)))
-        error_rot = np.sqrt(np.diag(pcov_rot))
-
-        x_1 = np.searchsorted(vrad,popt_rot[2]-popt_rot[3])
-        x_2 = np.searchsorted(vrad,popt_rot[2]+popt_rot[3], side='right')
-        x_2 = min(x_2,len(vrad)-1)
-
-        r_EW = simpson(func_rot(vrad[x_1:x_2], *popt_rot), x=vrad[x_1:x_2]) # equivalent width   
-        
-        std_r_EW = np.nanstd(1-flux[x_1:x_2] - func_rot(vrad[x_1:x_2], *popt_rot))
-        h = abs(np.nanmean(np.diff(vrad)))
-        e_r_EW = h*np.sqrt(len(vrad[x_1:x_2]))*std_r_EW
-        r_fit = {'profile': 1.-func_rot(vrad, *popt_rot),
-                 'rv': popt_rot[2], 'e_rv': error_rot[2],\
-                 'vsini': popt_rot[3], 'e_vsini': error_rot[3],\
-                 'EW': r_EW, \
-                 'e_EW': e_r_EW}
+    # Check that the number of the inputs match the number of the component
+    # Otherwise use the same input for all the component
+    
+    fit_funcs = fit.split(',')
+    if len(fit_funcs) != component:
+        fit_funcs = list(str(fit[0])*component)
+    
+    # If no input RV is given, the position(s) of the
+    # main(s) peak(s) will be used
+    if rv0 is None:
+        smooth_prof = smooth_spline(vrad, 1-flux)
+        peaks, properties = find_peaks(smooth_prof(vrad),prominence=0.1*f_0)
+        idxs_peaks = np.argsort(properties['prominences'])[::-1]
+        peaks = peaks[idxs_peaks]
+        if len(peaks) >= component:
+            #print(peaks[:component])
+            rv0s = vrad[peaks[:component]].tolist()
+            #print(rv0s)
+        else:
+            rv0s = list([str(vrad[peaks[0]])]*component)
+    
     else:
-        r_fit = {'profile': np.ones(flux.shape),
-                 'rv': 0, 'e_rv': 0,\
-                 'vsini': 0, 'e_vsini': 0,\
-                 'EW': 0, \
-                 'e_EW': 0}
-    if gauss:
-        try:
-            popt_gauss,pcov_gauss = curve_fit(gaussian, vrad, flux, p0=p_gauss, bounds=((-np.inf,0,-np.inf,-np.inf),(np.inf,np.inf,np.inf,np.inf)), sigma=errs, absolute_sigma=err_abs)
-        except (ValueError, RuntimeError):
-            popt_gauss = np.zeros(len(p_gauss))
-            pcov_gauss = np.zeros((len(p_gauss),len(p_gauss)))
-        error_gauss = np.sqrt(np.diag(pcov_gauss))
-        gauss_center = ufloat(popt_gauss[0],error_gauss[0])
-        gauss_sigma = ufloat(popt_gauss[1],error_gauss[1])
-        gauss_depth = ufloat(popt_gauss[2],error_gauss[2])
-        gauss_continuum = ufloat(popt_gauss[3],error_gauss[3])
+        rv0 = str(rv0)
+        rv0s = rv0.split(',')
+    if len(rv0s) != component:
+        rv0s = list([rv0s[0]]*component)
+    width = str(width)
+    widths = width.split(',')
+    if len(widths) != component:
+        widths = list([widths[0]]*component)
+    ld = str(ld)
+    lds = ld.split(',')
+    if len(lds) != component:
+        lds = list([lds[0]]*component)
+    
+    model = None
+    params = None
+    prefixes = {}
+    
+    for comp in range(component):
+        # Create empty entry in prefixes
+        rv_guess = float(rv0s[comp])
+        width_guess = float(widths[comp])
+        ld_guess = float(lds[comp])
         
-        # Compute EW
-        # 1. normalise the Gaussian F0 --> F0/K
-
-        u_Hg = gauss_depth/gauss_continuum
-        un_Hg = ufloat(abs(u_Hg.n),u_Hg.s)
-        # 2. Compute the area: Hg*sigma*sqrt(2*np.pi)
-
-        un_Ag = un_Hg*gauss_sigma*np.sqrt(2*np.pi)
-
-
-        g_fit = {'profile': gaussian(vrad, *popt_gauss),
-                 'rv': popt_gauss[0], 'e_rv': error_gauss[0],\
-                 'fwhm': popt_gauss[1]*np.sqrt(8*np.log(2)), \
-                 'e_fwhm': error_gauss[1]*np.sqrt(8*np.log(2)), \
-                 'EW': un_Ag.n, \
-                 'e_EW': un_Ag.s}
-
-    else:
-        g_fit = {'profile': np.ones(flux.shape),
-                 'rv': 0, 'e_rv': 0,\
-                 'fwhm': 0, \
-                 'e_fwhm': 0, \
-                 'EW': 0, \
-                 'e_EW': 0}
-    if lorentz:
-        try:
-            popt_lor,pcov_lor = curve_fit(lorentzian, vrad, flux, p0=p_gauss, bounds=((-np.inf,0,-np.inf,-np.inf),(np.inf,np.inf,np.inf,np.inf)), sigma=errs, absolute_sigma=err_abs)
-        except (ValueError, RuntimeError):
-            popt_lor = np.zeros(len(p_gauss))
-            pcov_lor = np.zeros((len(p_gauss),len(p_gauss)))
-        error_lor = np.sqrt(np.diag(pcov_lor))
-        lor_center = ufloat(popt_lor[0],error_lor[0])
-        lor_gamma = ufloat(popt_lor[1],error_lor[1])
-        lor_depth = ufloat(popt_lor[2],error_lor[2])
-        lor_continuum = ufloat(popt_lor[3],error_lor[3])        
+        prefixes[comp] = {
+                         'gaussian' : None,\
+                         'supergaussian' : None,\
+                         'agaussian' : None,\
+                         'lorentzian' : None,\
+                         'voigt' : None,\
+                         'rotational' : None\
+                          }
         
-        # Compute EW
-        # 1. normalise the Lorentzian F0 --> F0/K
-        Hl =  np.fabs(popt_lor[2]/popt_lor[3])
-        e_Hl = Hl*np.sqrt( (error_lor[2]/popt_lor[2])**2 + (error_lor[3]/popt_lor[3])**2 )
-        u_Hl = lor_depth/lor_continuum
-        un_Hl = ufloat(abs(u_Hl.n), u_Hl.s)
-        # 2. Compute the area: (np.pi/2)*Hf*fwhm
-        Al = (np.pi/2) * Hl * 2*popt_lor[1]
-        # 3. Propagate fit error on area
-        Al_err = Al*np.sqrt( ((np.pi/2)*(2*error_lor[1]/popt_lor[1])**2 + (e_Hl/Hl)**2 ))
-        un_Al = (np.pi/2) * un_Hl * 2*lor_gamma
-
-        l_fit = {'profile': lorentzian(vrad, *popt_lor),
-                 'rv': popt_lor[0], 'e_rv': error_lor[0],\
-                 'fwhm': 2*popt_lor[1], \
-                 'e_fwhm': 2*error_lor[1], \
-                 'EW': un_Al.n, \
-                 'e_EW': un_Al.s}
-
-    else:
-        l_fit = {'profile': np.ones(flux.shape),
-                 'rv': 0, 'e_rv': 0,\
-                 'fwhm': 0, \
-                 'e_fwhm': 0, \
-                 'EW': 0, \
-                 'e_EW': 0}
-                 
-    if voigt:
-        try:
-            popt_voigt,pcov_voigt = curve_fit(voigt_function, vrad, flux, p0=p_voigt, bounds=((-np.inf,0,0,-np.inf,-np.inf),(np.inf,np.inf,np.inf,np.inf,np.inf)), sigma=errs, absolute_sigma=err_abs)
-        except (ValueError, RuntimeError):
-            popt_voigt = np.zeros(len(p_voigt))
-            pcov_voigt = np.zeros((len(p_voigt),len(p_voigt)))
-        error_voigt = np.sqrt(np.diag(pcov_voigt))
-        voigt_center = ufloat(popt_voigt[0],error_voigt[0])
-        voigt_sigma = ufloat(popt_voigt[1],error_voigt[1])
-        voigt_gamma = ufloat(popt_voigt[2],error_voigt[2])
-        voigt_depth = ufloat(popt_voigt[3],error_voigt[3])
-        voigt_continuum = ufloat(popt_voigt[4],error_voigt[4])          
-               
-        fL = 2*popt_voigt[2]
-        fG = np.sqrt(8*np.log(2))*popt_voigt[1]
-        fwhm_voigt = 0.5346 * fL  + np.sqrt( 0.2166 * fL**2 + fG**2)
-        e_fwhm_voigt = 0
-        un_fL = 2*voigt_gamma
-        un_fG = np.sqrt(8*np.log(2))*voigt_sigma
-        un_fwhm_voigt = 0.5346 * un_fL  + umath.sqrt( 0.2166 * un_fL**2 + un_fG**2)
+        # ROTATIONAL FIT
         
-        # Compute EW
+        if fit_funcs[comp][0] == 'r':  # Rotational fit
 
-        v_EW = simpson(popt_voigt[4]-voigt_function(vrad, *popt_voigt), x=vrad) # equivalent width
+            # Check that input rv0 is inside RV range
+            # otherwise set rv0 as the middle value
+            if not minrv < rv_guess < maxrv:
+                rv_guess = 0.5*(minrv + maxrv)
+            
+            prefixes[comp]['rotational'] = f"rot{comp}_"
+            
+            mod = Model(rotational, prefix=f"rot{comp}_")
+
+            
+            if comp == 0:
+                fixed_K = f"rot{comp}_K"
+                fixed_x0 = f"rot{comp}_x0"
+
+                pars = mod.make_params(\
+                                       K={'value':K_guess, "min":-100, "max":100},\
+                                       F0={'value':f_0, "min":0, "max":np.inf},\
+                                       x0={'value':rv_guess, "min":minrv, "max":maxrv},\
+                                       s={'value':width_guess, "min":0, "max":maxrv-minrv},\
+                                       ld={'value':ld_guess, "vary":False},\
+                                       )
+            else:
+                pars = mod.make_params(\
+                                       K={'value':K_guess, "expr":fixed_K},\
+                                       F0={'value':f_0, "min":0, "max":np.inf},\
+                                       x0={'value':rv_guess, "min":minrv, "max":maxrv},\
+                                       s={'value':width_guess, "min":0, "max":maxrv-minrv},\
+                                       ld={'value':ld_guess, "vary":False},\
+                                       )
+
+            if params is None:
+                params = pars
+            else:
+                params.update(pars)
+            if model is None:
+                model = mod
+            else:
+                model += mod
+
+        # LORENTZIAN FIT
+           
+        elif fit_funcs[comp][0] == 'l':  # Lorenztian fit
+            # Check that input rv0 is inside RV range
+            # otherwise set rv0 as the middle value
+            if not minrv < rv_guess < maxrv:
+                rv_guess = 0.5*(minrv + maxrv)
+            
+            prefixes[comp]['lorentzian'] = f"lor{comp}_"
+            
+            mod = Model(lorentzian, prefix=f"lor{comp}_")
+
+
+            if comp == 0:
+                fixed_F0 = f"lor{comp}_F0"
+                fixed_K = f"lor{comp}_K"
+                fixed_x0 = f"lor{comp}_x0"
+                
+                pars = mod.make_params(\
+                                       x0={'value':rv_guess, "min":minrv, "max":maxrv},\
+                                       g={'value':width_guess, "min":0, "max":maxrv-minrv},\
+                                       F0={'value':f_0, "min":0, "max":np.inf},\
+                                       K={'value':K_guess, "min":-1, "max":1},\
+                                       res={'value':resolution, "vary":False}\
+                                       )
+            else:
+                pars = mod.make_params(\
+                                       x0={'value':rv_guess, "min":minrv, "max":maxrv},\
+                                       g={'value':width_guess, "min":0, "max":maxrv-minrv},\
+                                       F0={'value':f_0, "min":0, "max":np.inf},\
+                                       K={'value':K_guess, "expr":fixed_K},\
+                                       res={'value':resolution, "vary":False}\
+                                       )
+
+
+            if params is None:
+                params = pars
+            else:
+                params.update(pars)
+            if model is None:
+                model = mod
+            else:
+                model += mod
+
+        # VOIGT FIT
+
+        elif fit_funcs[comp][0] == 'v':  # voigt fit
+
+            # Check that input rv0 is inside RV range
+            # otherwise set rv0 as the middle value
+            if not minrv < rv_guess < maxrv:
+                rv_guess = 0.5*(minrv + maxrv)
+            
+            prefixes[comp]['voigt'] = f"voi{comp}_"
+            
+
+            mod = Model(voigt, prefix=f"voi{comp}_")
+
+
+            if comp == 0:
+                fixed_F0 = f"voi{comp}_F0"
+                fixed_K = f"voi{comp}_K"
+                fixed_x0 = f"voi{comp}_x0"
+                
+                pars = mod.make_params(\
+                                       x0={'value':rv_guess, "min":minrv, "max":maxrv},\
+                                       s={'value':width_guess, "min":1.e-15, "max":maxrv-minrv},\
+                                       g={'value':width_guess, "min":1.e-15, "max":maxrv-minrv},\
+                                       F0={'value':f_0, "min":0, "max":np.inf},\
+                                       K={'value':K_guess, "min":-1, "max":1},\
+                                       res={'value':resolution, 'vary': False}\
+                                       )
+            else:
+                pars = mod.make_params(\
+                                       x0={'value':rv_guess, "min":minrv, "max":maxrv},\
+                                       s={'value':width_guess, "min":1.e-15, "max":maxrv-minrv},\
+                                       g={'value':width_guess, "min":1.e-15, "max":maxrv-minrv},\
+                                       F0={'value':f_0, "min":0, "max":np.inf},\
+                                       K={'value':K_guess, "expr":fixed_K},\
+                                       res={'value':resolution, 'vary': False}\
+                                       )
+                                       
+            if params is None:
+                params = pars
+            else:
+                params.update(pars)
+            if model is None:
+                model = mod
+            else:
+                model += mod
+
+
+        # SUPERGAUSSIAN FIT
+
+        elif fit_funcs[comp][0] == 's':  # supergaussian fit
+            # Check that input rv0 is inside RV range
+            # otherwise set rv0 as the middle value
+            if not minrv < rv_guess < maxrv:
+                rv_guess = 0.5*(minrv + maxrv)
+            
+            prefixes[comp]['supergaussian'] = f"sga{comp}_"
+            
+            mod = Model(supergaussian, prefix=f"sga{comp}_")
+
+            if comp == 0:
+                fixed_F0 = f"sga{comp}_F0"
+                fixed_K = f"sga{comp}_K"
+                fixed_x0 = f"sga{comp}_x0"
+                
+                pars = mod.make_params(\
+                                       x0={'value':rv_guess, "min":minrv, "max":maxrv},\
+                                       s={'value':width_guess, "min":1.e-15, "max":maxrv-minrv},\
+                                       F0={'value':f_0, "min":0, "max":np.inf},\
+                                       K={'value':K_guess, "min":-1, "max":1},\
+                                       p={'value':2, "min":0.1, "max":10}\
+                                       )
+            else:
+                pars = mod.make_params(\
+                                       x0={'value':rv_guess, "min":minrv, "max":maxrv},\
+                                       s={'value':width_guess, "min":1.e-15, "max":maxrv-minrv},\
+                                       F0={'value':f_0, "min":0, "max":np.inf},\
+                                       K={'value':K_guess, "expr":fixed_K},\
+                                       p={'value':2, "min":0.1, "max":10}\
+                                       )
+                                       
+            if params is None:
+                params = pars
+            else:
+                params.update(pars)
+            if model is None:
+                model = mod
+            else:
+                model += mod
         
-        std_v_EW = np.nanstd(flux - voigt_function(vrad, *popt_voigt))
-        h_v = abs(np.nanmean(np.diff(vrad)))
-        Av_err = h_v*np.sqrt(len(vrad))*std_v_EW
+        # ASYMMETRIC GAUSSIAN FIT
 
-        v_fit = {'profile': voigt_function(vrad, *popt_voigt),
-                 'rv': popt_voigt[0], 'e_rv': error_voigt[0],\
-                 'fwhm': un_fwhm_voigt.n, \
-                 'e_fwhm': un_fwhm_voigt.s, \
-                 'EW': v_EW, \
-                 'e_EW': Av_err}
+        elif fit_funcs[comp][0] == 'a':  # asymmetric gaussian fit
+
+            # Check that input rv0 is inside RV range
+            # otherwise set rv0 as the middle value
+            if not minrv < rv_guess < maxrv:
+                rv_guess = 0.5*(minrv + maxrv)
+            
+            prefixes[comp]['agaussian'] = f"aga{comp}_"
+            
+            mod = Model(agaussian, prefix=f"aga{comp}_")
+
+            if comp == 0:
+                fixed_F0 = f"aga{comp}_F0"
+                fixed_K = f"aga{comp}_K"
+                fixed_x0 = f"aga{comp}_x0"
+                
+                pars = mod.make_params(\
+                                       x0={'value':rv_guess, "min":minrv, "max":maxrv},\
+                                       s={'value':width_guess, "min":0, "max":maxrv-minrv},\
+                                       g={'value':width_guess, "min":0, "max":maxrv-minrv},\
+                                       F0={'value':f_0, "min":0, "max":np.inf},\
+                                       K={'value':K_guess, "min":-1, "max":1},\
+                                       res={'value':resolution, 'vary': False}\
+                                       )
+            else:
+                pars = mod.make_params(\
+                                       x0={'value':rv_guess, "min":minrv, "max":maxrv},\
+                                       s={'value':width_guess, "min":0, "max":maxrv-minrv},\
+                                       g={'value':width_guess, "min":0, "max":maxrv-minrv},\
+                                       F0={'value':f_0, "min":0, "max":np.inf},\
+                                       K={'value':K_guess, "expr":fixed_K},\
+                                       res={'value':resolution, 'vary': False}\
+                                       )
+            if params is None:
+                params = pars
+            else:
+                params.update(pars)
+            if model is None:
+                model = mod
+            else:
+                model += mod
         
-    else:
-        v_fit = {'profile': np.ones(flux.shape),
-                 'rv': 0, 'e_rv': 0,\
-                 'fwhm': 0, \
-                 'e_fwhm': 0, \
-                 'EW': 0, \
-                 'e_EW': 0}
+        # GAUSSIAN FIT (DEFAULT)
 
-    return {'gaussian': g_fit, 'rotational': r_fit, 'lorentzian': l_fit, 'voigt': v_fit}
+        else: # Gaussian fit (default)
+
+            # Check that input rv0 is inside RV range
+            # otherwise set rv0 as the middle value
+            if not minrv < rv_guess < maxrv:
+                rv_guess = 0.5*(minrv + maxrv)
+            prefixes[comp]['gaussian'] = f"gau{comp}_"
+            #print(f"gau{comp}_")
+
+            
+            mod = Model(gaussian, prefix=f"gau{comp}_")
+
+            if comp == 0:
+                fixed_F0 = f"gau{comp}_F0"
+                fixed_K = f"gau{comp}_K"
+                fixed_x0 = f"gau{comp}_x0"
+                
+                pars = mod.make_params(\
+                                       x0={'value':rv_guess, "min":minrv, "max":maxrv},\
+                                       s={'value':width_guess, "min":0, "max":maxrv-minrv},\
+                                       F0={'value':f_0, "min":0, "max":np.inf},\
+                                       K={'value':K_guess, "min":-1, "max":1},\
+                                       res={'value':resolution, 'vary': False}\
+                                       )
+            else:
+                pars = mod.make_params(\
+                                       x0={'value':rv_guess, "min":minrv, "max":maxrv},\
+                                       s={'value':width_guess, "min":0, "max":maxrv-minrv},\
+                                       F0={'value':f_0, "min":0, "max":np.inf},\
+                                       K={'value':K_guess, "expr":fixed_K},\
+                                       res={'value':resolution, 'vary': False}\
+                                       )
+                                       
+            #print(pars)
+            if params is None:
+                params = pars
+            else:
+                params.update(pars)
+            if model is None:
+                model = mod
+            else:
+                model += mod
+    
+
+        
+    
+    # fit the global model 
+
+    
+    fit_result = model.fit(1-flux, params, x=vrad, weights=1./errs, scale_covar=False)
+    comps = fit_result.eval_components(x=vrad)
+    
+    result = {'report' : fit_result.fit_report(), 'profile' : 1-fit_result.best_fit}
+
+    
+    for comp in range(component):
+        result[comp] = {}
+        
+        for fun in prefixes[comp]:
+            if prefixes[comp][fun]:
+                fit_prof = comps[prefixes[comp][fun]]
+            else:
+                fit_prof = np.zeros(vrad.shape)            
+            result[comp][fun] = fit_values(fun, prefixes[comp][fun], fit_result, fit_prof)
+    
+    return result
 
 ############################
 # Compute the line moments #
 ############################
-def moments(rvs, ccf, errs=0, limits=False, normalise=True):
+def moments(rv_range, ccf, errs=0, limits=False, normalise=True):
     """
     Compute the line moments
     ====================================================
     Input parameters:
-    rvs: array with radial velocity range
+    rv_range: array with radial velocity range
     ccf: array with mean line profile
     errs: is given, the real errors are used to compute the error on the moments
           otherwise the StDev of the continuum will be used
@@ -1751,13 +2473,13 @@ def moments(rvs, ccf, errs=0, limits=False, normalise=True):
     """
 
     if not limits:
-        limits = show_ccf([rvs],[ccf])
+        limits = show_ccf([rv_range],[ccf])
 
-    x1 = np.searchsorted(rvs,float(limits[0]))
-    x2 = np.searchsorted(rvs,float(limits[1]))
+    x1 = np.searchsorted(rv_range,float(limits[0]))
+    x2 = np.searchsorted(rv_range,float(limits[1]))
     x_1 = min(x1,x2)
     x_2 = max(x1,x2)
-    x_2 = min(x_2+1, len(rvs)-2)
+    x_2 = min(x_2+1, len(rv_range)-2)
     x_1 = max(x1,2)
 
     idxarray = np.zeros(ccf.shape, dtype=bool)
@@ -1766,8 +2488,8 @@ def moments(rvs, ccf, errs=0, limits=False, normalise=True):
 
     # 1. normalise line
     if normalise:
-        linfit = np.poly1d(np.polyfit(rvs[idxarray],ccf[idxarray],1))
-        fitvalues = linfit(rvs)
+        linfit = np.poly1d(np.polyfit(rv_range[idxarray],ccf[idxarray],1))
+        fitvalues = linfit(rv_range)
         norccf = 1.0 - (ccf/fitvalues)
     else:
         norccf = 1.0 - ccf
@@ -1783,14 +2505,14 @@ def moments(rvs, ccf, errs=0, limits=False, normalise=True):
     # m3 = seed for skewness
     # m4 = seed for kurtosis
 
-    eqw = simpson(norccf[x_1:x_2], x=rvs[x_1:x_2]) # equivalent width, m0
-    m_1 = np.true_divide(simpson(np.multiply(rvs[x_1:x_2],norccf[x_1:x_2]), x=rvs[x_1:x_2]), eqw)
-    m_2 = np.true_divide( simpson( np.multiply( (rvs[x_1:x_2]-m_1)**2 , norccf[x_1:x_2] ) \
-                          , x=rvs[x_1:x_2]), eqw)
-    m_3 = np.true_divide(simpson(np.multiply( (rvs[x_1:x_2]-m_1)**3,norccf[x_1:x_2]), \
-               x=rvs[x_1:x_2] ), eqw)
-    m_4 = np.true_divide(simpson(np.multiply( (rvs[x_1:x_2]-m_1)**4,norccf[x_1:x_2]), \
-               x=rvs[x_1:x_2] ), eqw)
+    eqw = simpson(norccf[x_1:x_2], x=rv_range[x_1:x_2]) # equivalent width, m0
+    m_1 = np.true_divide(simpson(np.multiply(rv_range[x_1:x_2],norccf[x_1:x_2]), x=rv_range[x_1:x_2]), eqw)
+    m_2 = np.true_divide( simpson( np.multiply( (rv_range[x_1:x_2]-m_1)**2 , norccf[x_1:x_2] ) \
+                          , x=rv_range[x_1:x_2]), eqw)
+    m_3 = np.true_divide(simpson(np.multiply( (rv_range[x_1:x_2]-m_1)**3,norccf[x_1:x_2]), \
+               x=rv_range[x_1:x_2] ), eqw)
+    m_4 = np.true_divide(simpson(np.multiply( (rv_range[x_1:x_2]-m_1)**4,norccf[x_1:x_2]), \
+               x=rv_range[x_1:x_2] ), eqw)
 
     # 3. compute statistical uncertainties on moments
     # https://iopscience.iop.org/article/10.3847/2515-5172/ab2125
@@ -1802,19 +2524,19 @@ def moments(rvs, ccf, errs=0, limits=False, normalise=True):
         sigma_i = np.ones(norccf[x_1:x_2].shape)*sigma
     
 
-    deltav02 = simpson(np.power(sigma_i,2), x=rvs[x_1:x_2])
+    deltav02 = simpson(np.power(sigma_i,2), x=rv_range[x_1:x_2])
     errm0 = np.sqrt( deltav02 )
     
-    deltav12 = simpson(np.multiply(sigma_i**2, (rvs[x_1:x_2]-m_1)**2), x=rvs[x_1:x_2])
+    deltav12 = simpson(np.multiply(sigma_i**2, (rv_range[x_1:x_2]-m_1)**2), x=rv_range[x_1:x_2])
     errm1 = np.sqrt( abs(deltav12) )
         
-    deltav22 = simpson(np.multiply(sigma_i**2, ((((rvs[x_1:x_2]-m_1)**2) - m_2)**2)), x=rvs[x_1:x_2])
+    deltav22 = simpson(np.multiply(sigma_i**2, ((((rv_range[x_1:x_2]-m_1)**2) - m_2)**2)), x=rv_range[x_1:x_2])
     errm2 = np.sqrt( abs(deltav22) )
 
-    deltav32 = simpson(np.multiply(sigma_i**2, ((((rvs[x_1:x_2]-m_1)**3) - m_3)**2)), x=rvs[x_1:x_2])
+    deltav32 = simpson(np.multiply(sigma_i**2, ((((rv_range[x_1:x_2]-m_1)**3) - m_3)**2)), x=rv_range[x_1:x_2])
     errm3 = np.sqrt( abs(deltav32) )
     
-    deltav42 = simpson(np.multiply(sigma_i**2, ((((rvs[x_1:x_2]-m_1)**4) - m_4)**2)), x=rvs[x_1:x_2])
+    deltav42 = simpson(np.multiply(sigma_i**2, ((((rv_range[x_1:x_2]-m_1)**4) - m_4)**2)), x=rv_range[x_1:x_2])
     errm4 = np.sqrt( abs(deltav42) )
 
     u_sigma = ufloat(np.sqrt(abs(m_2)), 0.5*errm2/np.sqrt(abs(m_2)))
@@ -1825,10 +2547,14 @@ def moments(rvs, ccf, errs=0, limits=False, normalise=True):
     u_m4_kurtosis = u_m4/u_sigma**4
   
 
-    return {'m0': eqw, 'e_m0': errm0, 'm1': m_1, 'e_m1': errm1, \
-            'm2': m_2, 'e_m2': errm2, 'm3': m_3, 'e_m3': errm3,  'm4': m_4, 'e_m4': errm4, \
-            'fwhm' : u_m2_fwhm.n, 'e_fwhm' : u_m2_fwhm.s, 'skewness' : u_m3_skewness.n, \
-            'e_skewness' : u_m3_skewness.s, 'kurtosis' : u_m4_kurtosis.n, 'e_kurtosis' : u_m4_kurtosis.s}
+    return {'m0': float(eqw), 'e_m0': float(errm0),\
+            'm1': float(m_1), 'e_m1': float(errm1), \
+            'm2': float(m_2), 'e_m2': float(errm2), \
+            'm3': float(m_3), 'e_m3': float(errm3),  \
+            'm4': float(m_4), 'e_m4': float(errm4), \
+            'fwhm' : u_m2_fwhm.n, 'e_fwhm' : u_m2_fwhm.s, \
+            'skewness' : u_m3_skewness.n, 'e_skewness' : u_m3_skewness.s, \
+            'kurtosis' : u_m4_kurtosis.n, 'e_kurtosis' : u_m4_kurtosis.s}
 
 #############################
 # Compute the line bisector #
@@ -1926,7 +2652,7 @@ def bisector(rv_range, flux, errs=0, limits=False):
     bispan = np.nanmean(bisvel[10:41]) - np.nanmean(bisvel[55:91])
     err_bispan = 0.5*np.sqrt((np.sum(err_bisvel[10:41])/len(err_bisvel[10:41])**2) + (np.sum(err_bisvel[55:91])/len(err_bisvel[55:91])**2))
 
-    bis_results = {'bisvel' : bisvel, 'bisflux' : f_range, 'biserr' : err_bisvel, 'bispan' : bispan, 'e_bispan' : err_bispan}
+    bis_results = {'bisvel' : bisvel, 'bisflux' : f_range, 'biserr' : err_bisvel, 'bispan' : float(bispan), 'e_bispan' : float(err_bispan)}
 
     return bis_results
 

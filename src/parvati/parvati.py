@@ -1238,9 +1238,10 @@ def compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=F
         ccf = np.zeros(len(rv_range))
         e_ccf = np.zeros(len(rv_range))
         
-        rv_mask_depths = np.zeros(len(o_split_nflux))
+        
         
         for n, rv in enumerate(rv_range):
+            rv_mask_depths = np.zeros(len(o_split_nflux))
             if mask_spectrum:
                 rv_fine_step = int(rv*fine_rv)
                 rv_mask_depths = np.roll(mask_depths,rv_fine_step)

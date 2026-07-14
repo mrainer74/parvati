@@ -168,4 +168,4 @@ find_shift_fft(y1, y2)
 """
 
 from parvati.parvati import *
-__version__ = '2.0.0'
+__version__ = '2.1.0'

@@ -7,7 +7,7 @@ import os, sys
 import parvati as pa
 
 star = 'fast'
-#star = 'red'
+star = 'red'
 
 if star == 'fast':
     testfile = 'fast_rotator.fits'

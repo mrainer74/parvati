@@ -177,7 +177,7 @@ from astropy.stats import sigma_clip
 from astropy.io import fits
 import astropy.units as u
 
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, UnivariateSpline
 from scipy.optimize import curve_fit
 from scipy.fftpack import fft,fftfreq,ifft
 from scipy.special import wofz
@@ -664,7 +664,7 @@ def norm_spectrum(wave, flux, snr=False, echelle=False, deg=2, \
 #  Read the stellar mask, select elements and depths  #
 #######################################################
 def read_mask(maskname, unit='a', wavecol=1, fluxcol=2, ele=False, no_ele=False, depths=(0.01,1),\
-              balmer=True, tellurics=True, wmin=False, wmax=False, invert=False, vacuum=True):
+              balmer=True, tellurics=True, wmin=False, wmax=False, invert=False, spectrum=False, vacuum=True):
     """
     Read stellar mask (either binary mask, VALD file, or absorption spectrum/model)
     ====================================================
@@ -674,8 +674,8 @@ def read_mask(maskname, unit='a', wavecol=1, fluxcol=2, ele=False, no_ele=False,
             'a': Angstrom (default)
             'n': nanometer
             'm': micron
-    wavecol = if tha mask is NOT a VALD mask, then the wavelength is in wavecol-1
-    fluxcol = if tha mask is NOT a VALD mask, then the wavelength is in fluxcol-1
+    wavecol = if the mask is NOT a VALD mask, then the wavelength is in wavecol-1
+    fluxcol = if the mask is NOT a VALD mask, then the wavelength is in fluxcol-1
     ele/no_ele = select elements to use or the exclude in a VALD mask
                  passing the elements as a character string in
                  VALD format, e.g. eles="Fe 1,Fe 2,H 1"
@@ -954,6 +954,12 @@ def compute_lsd(spectrum, mask_data, vrange=(-200,200), \
         if clean:
             o_split_nflux = smooth_spectrum(new_wave, o_split_nflux, 10)
 
+        # To avoid weighting less the core of the lines, where SNR is lower
+        # due to the lower flux, first the SNR array is roughly smoothed
+
+        snr_spl = UnivariateSpline(o_wave, split_snr[o])
+        split_snr[o] = snr_spl(o_wave)
+
 
         # select mask lines in the wavelength range of the order
         idxs = np.nonzero(np.logical_and(wmask*(1 + v_low/ckms) > new_wave[5],\
@@ -1137,7 +1143,7 @@ def compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=F
 
     v_up = max(vrange[0], vrange[1])
     v_low = min(vrange[0], vrange[1])
-    len_vrange = (v_up-v_low)/step
+    len_vrange = (abs(v_up-v_low))/step
     if len_vrange % 1:
         v_up = v_low + step*(int(len_vrange)+1)
 
@@ -1146,7 +1152,8 @@ def compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=F
     v_up = rv_range[-1]
     len_vrange = len(rv_range)
     # Do a finer step: fine_step = step/10.0
-    fine_step = 0.1*step
+    fine_rv = 10
+    fine_step = step/fine_rv
     wave_step = 1. + (fine_step / ckms)
 
     # split the spectrum in echelle orders (if any) by looking for changes
@@ -1177,29 +1184,35 @@ def compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=F
         if clean:
             split_nflux[o] = smooth_spectrum(o_wave, split_nflux[o], 10)
 
+
+        # To avoid weighting less the core of the lines, where SNR is lower
+        # due to the lower flux, first the SNR array is roughly smoothed
+
+        snr_spl = UnivariateSpline(o_wave, split_snr[o])
+        split_snr[o] = snr_spl(o_wave)
+        
         # Interpolate spectrum on finer wavelength range
         new_wave, o_split_flux, o_split_nflux, o_split_snr = rebin_spectrum(o_wave, split_flux[o], split_nflux[o], split_snr[o], wave_step)
         o_split_snr[o_split_snr<=0.01] = 0.01
         o_split_errs = o_split_nflux/o_split_snr
         
-
         # select mask lines in the wavelength range of the order
         idxs = np.nonzero(np.logical_and(wmask*(1 + v_low/ckms) > new_wave[5],\
                wmask*(1 + v_up/ckms) < new_wave[-5]))
         mask_wave = wmask[idxs]
         mask_depths = dmask[idxs]
+        
         if len(mask_wave) < 1:
             if verbose:
                 print(f"Order {o+1}: not enough mask lines, skipped.")
             continue
-
         
         # Keep only unique values of mask wavelength
-        # and sort forincreasing wavelength
+        # and sort for increasing wavelength
         mask_wave, idx_mask = np.unique(mask_wave, return_index=True)
         mask_depths = mask_depths[idx_mask]
         
-        
+                
         mask_weight = len(mask_wave)
         ccf_weights.append(np.sum(mask_depths)*mask_weight)
 
@@ -1224,21 +1237,28 @@ def compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=F
 
         ccf = np.zeros(len(rv_range))
         e_ccf = np.zeros(len(rv_range))
-        #print(rv_range)
+        
+        rv_mask_depths = np.zeros(len(o_split_nflux))
         
         for n, rv in enumerate(rv_range):
-
-            #print(rv)
-            rv_mask_wave = mask_wave*(1.0 + rv/ckms)
-            rv_mask_depths = np.zeros(len(o_split_nflux))
-            where = np.searchsorted(new_wave,rv_mask_wave)
-            right = np.minimum(where, len(new_wave) - 1)
-            left = np.maximum(where-1, 0)
+            if mask_spectrum:
+                rv_fine_step = int(rv*fine_rv)
+                rv_mask_depths = np.roll(mask_depths,rv_fine_step)
+                if rv_fine_step > 0:
+                    rv_mask_depths[:rv_fine_step] = 0
+                elif rv_fine_step < 0:
+                    rv_mask_depths[rv_fine_step:] = 0
+                
+            else:
+                rv_mask_wave = mask_wave*(1.0 + rv/ckms)
+                where = np.searchsorted(new_wave,rv_mask_wave)
+                right = np.minimum(where, len(new_wave) - 1)
+                left = np.maximum(where-1, 0)
             
-            right_diff = rv_mask_wave - new_wave[right]
-            left_diff  = rv_mask_wave - new_wave[left ]
-            rv_idxs = np.where(np.abs(right_diff) <= left_diff, right, left)
-            rv_mask_depths[rv_idxs] = mask_depths
+                right_diff = rv_mask_wave - new_wave[right]
+                left_diff  = rv_mask_wave - new_wave[left ]
+                rv_idxs = np.where(np.abs(right_diff) <= np.abs(left_diff), right, left)
+                rv_mask_depths[rv_idxs] = mask_depths
 
             inv_nflux = 1.0 - o_split_nflux
 
@@ -1246,7 +1266,7 @@ def compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=F
             if not weights:
                 o_weights = np.ones(inv_nflux.shape)
 
-            else:            
+            else:                            
                 o_weights = np.nan_to_num(o_split_snr, nan=0.01, posinf=0.01, neginf=0.01)#**2
                 o_weights = o_weights/np.nansum(o_weights)
                 o_weights = o_weights*len(inv_nflux)
@@ -1256,10 +1276,20 @@ def compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=F
            
         ccf_results.append(ccf)
         ccf_errs.append(e_ccf)
+        #plt.title(f"{o}: {np.round(np.nanmean(e_ccf),5)}")
+        #plt.plot(rv_range, ccf)
+        #plt.savefig(f"test_{o}_ccf.png")
+        #plt.show()
+        #plt.close()
         
     ccf_errs = np.asarray(ccf_errs)
     ccf_errs = np.nan_to_num(ccf_errs)
     ccf_errs_mean = np.nanmean(ccf_errs, axis=1)
+    #print(ccf_errs_mean)
+    #print(ccf_errs)
+    if ccf_errs_mean.all() == 0:
+        ccf_errs_mean = np.ones(ccf_errs_mean.shape)
+        
         
     ccf_results = np.asarray(ccf_results)
     ccf_results = np.nan_to_num(ccf_results)
@@ -1516,7 +1546,7 @@ def norm_profile(profiles, rvcol=1, prfcol=2, errcol=0, sfx='pfn', std='line_mea
 
     if std:
         outname = '.'.join((std,'txt'))
-        outpng = '.'.join((std,'png'))
+        #outpng = '.'.join((std,'png'))
         if len(norccfs) > 1:
             ccf_mean = np.nanmean(norccfs, axis=0)
             rv_mean = np.nanmean(rvs, axis=0)
@@ -1524,19 +1554,20 @@ def norm_profile(profiles, rvcol=1, prfcol=2, errcol=0, sfx='pfn', std='line_mea
         else:
             ccf_mean = norccfs[0]
             rv_mean = rvs[0]
-            std_dev = np.zeros(norccfs[0].shape)
+            #std_dev = np.zeros(norccfs[0].shape)
+            std_dev = np.full(norccfs[0].shape, np.nan)
 
-        fig = plt.figure()
-        ax1 = fig.add_subplot(211)
-        ax1.plot(rv_mean, ccf_mean, 'k-')
-        ax1.set_ylabel('Normalised flux')
-        ax1.set_title('Mean profile')
-        ax2 = fig.add_subplot(212)
-        ax2.plot(rv_mean, std_dev, 'k-')
-        ax2.set_xlabel('Doppler velocity (km/s)')
-        ax2.set_ylabel('Standard deviation')
-        plt.savefig(outpng)
-        plt.close()
+        #fig = plt.figure()
+        #ax1 = fig.add_subplot(211)
+        #ax1.plot(rv_mean, ccf_mean, 'k-')
+        #ax1.set_ylabel('Normalised flux')
+        #ax1.set_title('Mean profile')
+        #ax2 = fig.add_subplot(212)
+        #ax2.plot(rv_mean, std_dev, 'k-')
+        #ax2.set_xlabel('Doppler velocity (km/s)')
+        #ax2.set_ylabel('Standard deviation')
+        #plt.savefig(outpng)
+        #plt.close()
 
         output = np.vstack((rv_mean, ccf_mean, std_dev))
 
@@ -1738,295 +1769,214 @@ def fit_values(function, prefix, result, profile):
       
     # GAUSSIAN
     if function == 'gaussian':        
-        if prefix is None:
-            fit_val = {\
-                      'profile' : 1-profile,\
-                      'profile_nores' : 1-profile,\
-                      'rv': 0, \
-                      'e_rv': 0,\
-                      'width': 0, \
-                      'e_width': 0, \
-                      'EW': 0, \
-                      'e_EW': 0\
-                      }
-        else:
-            try:
-                gauss_center = result.uvars[f"{prefix}x0"]
-                gauss_sigma = result.uvars[f"{prefix}s"]
-                gauss_depth = result.uvars[f"{prefix}F0"]
-                gauss_continuum = result.uvars[f"{prefix}K"]
-                gauss_res = result.uvars[f"{prefix}res"]
-            except AttributeError:
-                gauss_center = ufloat(0,0)
-                gauss_sigma = ufloat(0,0)
-                gauss_depth = ufloat(0,0)
-                gauss_continuum = ufloat(0,0)
-                gauss_res = ufloat(0,0)
+        try:
+            gauss_center = result.uvars[f"{prefix}x0"]
+            gauss_sigma = result.uvars[f"{prefix}s"]
+            gauss_depth = result.uvars[f"{prefix}F0"]
+            gauss_continuum = result.uvars[f"{prefix}K"]
+            gauss_res = result.uvars[f"{prefix}res"]
+        except AttributeError:
+            gauss_center = ufloat(0,0)
+            gauss_sigma = ufloat(0,0)
+            gauss_depth = ufloat(0,0)
+            gauss_continuum = ufloat(0,0)
+            gauss_res = ufloat(0,0)
 
-            #print(f"{prefix} {gauss_res.n}:\n center={gauss_center}\n sigma={gauss_sigma}")
+        #print(f"{prefix} {gauss_res.n}:\n center={gauss_center}\n sigma={gauss_sigma}")
         
-            # 1. Compute EW: Hg*sigma*sqrt(2*np.pi)
+        # 1. Compute EW: Hg*sigma*sqrt(2*np.pi)
 
-            EW = gauss_depth*gauss_sigma*np.sqrt(2*np.pi)
-            
-
-            fit_val = {\
-                      'profile' : 1-profile,\
-                      'profile_nores' : 1- gaussian(vrad, gauss_center.n, gauss_sigma.n, gauss_depth.n, gauss_continuum.n),\
-                      'rv': gauss_center.n, \
-                      'e_rv': gauss_center.s,\
-                      'width': float(gauss_sigma.n*np.sqrt(8*np.log(2))), \
-                      'e_width': float(gauss_sigma.s*np.sqrt(8*np.log(2))), \
-                      'EW': EW.n, \
-                      'e_EW': EW.s\
-                      }
+        EW_fit = gauss_depth*gauss_sigma*np.sqrt(2*np.pi)
+        profile_nores = 1- gaussian(vrad, gauss_center.n, gauss_sigma.n, gauss_depth.n, gauss_continuum.n)
+        rv = gauss_center.n
+        e_rv = gauss_center.s
+        width = float(gauss_sigma.n*np.sqrt(8*np.log(2)))
+        e_width = float(gauss_sigma.s*np.sqrt(8*np.log(2)))
+        EW = EW_fit.n
+        e_EW = EW_fit.s
 
 
     # SUPERGAUSSIAN    
     elif function == 'supergaussian':
-        if prefix is None:
-            fit_val = {\
-                      'profile' : 1-profile,\
-                      'profile_nores' : 1-profile,\
-                      'rv': 0, \
-                      'e_rv': 0,\
-                      'width': 0, \
-                      'e_width': 0, \
-                      'EW': 0, \
-                      'e_EW': 0\
-                      }
-        else:
-            try:
-                gauss_center = result.uvars[f"{prefix}x0"]
-                gauss_sigma = result.uvars[f"{prefix}s"]
-                gauss_depth = result.uvars[f"{prefix}F0"]
-                gauss_continuum = result.uvars[f"{prefix}K"]
-                gauss_super = result.uvars[f"{prefix}p"]
-                #gauss_res = result.uvars[f"{prefix}res"]
-            except AttributeError:
-                gauss_center = ufloat(0,0)
-                gauss_sigma = ufloat(0,0)
-                gauss_depth = ufloat(0,0)
-                gauss_continuum = ufloat(0,0)
-                gauss_super = ufloat(0,0)
-                #gauss_res = 0
-            #print(f"{prefix}:\n center={gauss_center}\n sigma={gauss_sigma}")
+        try:
+            gauss_center = result.uvars[f"{prefix}x0"]
+            gauss_sigma = result.uvars[f"{prefix}s"]
+            gauss_depth = result.uvars[f"{prefix}F0"]
+            gauss_continuum = result.uvars[f"{prefix}K"]
+            gauss_super = result.uvars[f"{prefix}p"]
+            #gauss_res = result.uvars[f"{prefix}res"]
+        except AttributeError:
+            gauss_center = ufloat(0,0)
+            gauss_sigma = ufloat(0,0)
+            gauss_depth = ufloat(0,0)
+            gauss_continuum = ufloat(0,0)
+            gauss_super = ufloat(0,0)
+            #gauss_res = 0
+        #print(f"{prefix}:\n center={gauss_center}\n sigma={gauss_sigma}")
         
-            # Compute EW: area beneath the fit
-            # inside 3 sigma range
-            idx1 = np.searchsorted(vrad, gauss_center.n-3*gauss_sigma.n)
-            idx2 = np.searchsorted(vrad, gauss_center.n+3*gauss_sigma.n, side='right')
-            idx2 = min(idx2,len(vrad)-1)
+        # Compute EW: area beneath the fit
+        # inside 3 sigma range
+        idx1 = np.searchsorted(vrad, gauss_center.n-3*gauss_sigma.n)
+        idx2 = np.searchsorted(vrad, gauss_center.n+3*gauss_sigma.n, side='right')
+        idx2 = min(idx2,len(vrad)-1)
             
-            EW = simpson(profile[idx1:idx2]-gauss_continuum.n, x=vrad[idx1:idx2]) # equivalent width
-            std_EW = np.sqrt(np.nansum(result.eval_uncertainty(x=vrad[idx1:idx2])**2))
-            h_v = abs(np.nanmean(np.diff(vrad)))
-            e_EW = h_v*np.sqrt(len(vrad[idx1:idx2]))*std_EW
-            #EW = 0
-            #e_EW = 0
-
-            fit_val = {\
-                      'profile' : 1-profile,\
-                      'profile_nores' : 1-profile,\
-                      'rv': gauss_center.n, \
-                      'e_rv': gauss_center.s,\
-                      'width': float(gauss_sigma.n*np.sqrt(8*np.log(2))), \
-                      'e_width': float(gauss_sigma.s*np.sqrt(8*np.log(2))), \
-                      'EW': float(EW), \
-                      'e_EW': float(e_EW)\
-                      }
+        EW = simpson(profile[idx1:idx2]-gauss_continuum.n, x=vrad[idx1:idx2]) # equivalent width
+        std_EW = np.sqrt(np.nansum(result.eval_uncertainty(x=vrad[idx1:idx2])**2))
+        h_v = abs(np.nanmean(np.diff(vrad)))
+        e_EW = h_v*np.sqrt(len(vrad[idx1:idx2]))*std_EW
+        #EW = 0
+        #e_EW = 0
+        
+        profile_nores = 1-profile
+        rv = gauss_center.n
+        e_rv = gauss_center.s
+        width = float(gauss_sigma.n*np.sqrt(8*np.log(2)))
+        e_width = float(gauss_sigma.s*np.sqrt(8*np.log(2)))
+        EW = float(EW)
+        e_EW = float(e_EW)
 
     # ASYMMETRIC GAUSSIAN    
     elif function == 'agaussian':
-        if prefix is None:
-            fit_val = {\
-                      'profile' : 1-profile,\
-                      'profile_nores' : 1-profile,\
-                      'rv': 0, \
-                      'e_rv': 0,\
-                      'width': 0, \
-                      'e_width': 0, \
-                      'EW': 0, \
-                      'e_EW': 0\
-                      }
-        else:
-            try:
-                gauss_center = result.uvars[f"{prefix}x0"]
-                gauss_sigma = result.uvars[f"{prefix}s"]
-                gauss_asy = result.uvars[f"{prefix}g"]
-                gauss_depth = result.uvars[f"{prefix}F0"]
-                gauss_continuum = result.uvars[f"{prefix}K"]
-                gauss_res = result.uvars[f"{prefix}res"]
-            except AttributeError:
-                gauss_center = ufloat(0,0)
-                gauss_sigma = ufloat(0,0)
-                gauss_asy = ufloat(0,0)
-                gauss_depth = ufloat(0,0)
-                gauss_continuum = ufloat(0,0)
-                gauss_res = ufloat(0,0)
+        try:
+            gauss_center = result.uvars[f"{prefix}x0"]
+            gauss_sigma = result.uvars[f"{prefix}s"]
+            gauss_asy = result.uvars[f"{prefix}g"]
+            gauss_depth = result.uvars[f"{prefix}F0"]
+            gauss_continuum = result.uvars[f"{prefix}K"]
+            gauss_res = result.uvars[f"{prefix}res"]
+        except AttributeError:
+            gauss_center = ufloat(0,0)
+            gauss_sigma = ufloat(0,0)
+            gauss_asy = ufloat(0,0)
+            gauss_depth = ufloat(0,0)
+            gauss_continuum = ufloat(0,0)
+            gauss_res = ufloat(0,0)
 
-            #print(f"{prefix} {gauss_res.n}:\n center={gauss_center}\n sigma={gauss_sigma}")
+        #print(f"{prefix} {gauss_res.n}:\n center={gauss_center}\n sigma={gauss_sigma}")
         
-            # Compute EW: area beneath the fit
-            # inside 3 sigma range
-            EW1 = gauss_depth*gauss_sigma*np.sqrt(2*np.pi)
-            EW2 = gauss_depth*gauss_asy*np.sqrt(2*np.pi)
-            EW = 0.5*(EW1+EW2)
-
-
-            fit_val = {\
-                      'profile' : 1-profile,\
-                      'profile_nores' : 1-agaussian(vrad, gauss_center.n, gauss_sigma.n, gauss_asy.n, gauss_depth.n, gauss_continuum.n),\
-                      'rv': gauss_center.n, \
-                      'e_rv': gauss_center.s,\
-                      'width': float(gauss_sigma.n*np.sqrt(8*np.log(2))), \
-                      'e_width': float(gauss_sigma.s*np.sqrt(8*np.log(2))), \
-                      'EW': EW.n, \
-                      'e_EW': EW.s\
-                      }
+        # Compute EW: area beneath the fit
+        # inside 3 sigma range
+        EW1 = gauss_depth*gauss_sigma*np.sqrt(2*np.pi)
+        EW2 = gauss_depth*gauss_asy*np.sqrt(2*np.pi)
+        EW_fit = 0.5*(EW1+EW2)
+        
+        profile_nores = 1-agaussian(vrad, gauss_center.n, gauss_sigma.n, gauss_asy.n, gauss_depth.n, gauss_continuum.n)
+        rv = gauss_center.n
+        e_rv = gauss_center.s
+        width = float(gauss_sigma.n*np.sqrt(8*np.log(2)))
+        e_width = float(gauss_sigma.s*np.sqrt(8*np.log(2)))
+        EW = EW_fit.n
+        e_EW = EW_fit.s
 
     # LORENTZIAN    
     elif function == 'lorentzian':
-        if prefix is None:
-            fit_val = {\
-                      'profile' : 1-profile,\
-                      'profile_nores' : 1-profile,\
-                      'rv': 0, \
-                      'e_rv': 0,\
-                      'width': 0, \
-                      'e_width': 0, \
-                      'EW': 0, \
-                      'e_EW': 0\
-                      }
-        else:
-            try:
-                lor_center = result.uvars[f"{prefix}x0"]
-                lor_gamma = result.uvars[f"{prefix}g"]
-                lor_depth = result.uvars[f"{prefix}F0"]
-                lor_continuum = result.uvars[f"{prefix}K"]
-                lor_fwhm = 2 * lor_gamma
-                lor_res = result.uvars[f"{prefix}res"]
-            except AttributeError:
-                lor_center = ufloat(0,0)
-                lor_gamma = ufloat(0,0)
-                lor_depth = ufloat(0,0)
-                lor_continuum = ufloat(0,0)
-                lor_fwhm = ufloat(0,0)
-                lor_res = ufloat(0,0)
+        try:
+            lor_center = result.uvars[f"{prefix}x0"]
+            lor_gamma = result.uvars[f"{prefix}g"]
+            lor_depth = result.uvars[f"{prefix}F0"]
+            lor_continuum = result.uvars[f"{prefix}K"]
+            lor_fwhm = 2 * lor_gamma
+            lor_res = result.uvars[f"{prefix}res"]
+        except AttributeError:
+            lor_center = ufloat(0,0)
+            lor_gamma = ufloat(0,0)
+            lor_depth = ufloat(0,0)
+            lor_continuum = ufloat(0,0)
+            lor_fwhm = ufloat(0,0)
+            lor_res = ufloat(0,0)
 
-            #print(f"{prefix} {lor_res.n}:\n center={lor_center}\n gamma={lor_gamma}")        
-            # Compute EW: lor_depth * np.pi * lor_gamma
-            # equal to: (np.pi/2)*lor_depth*fwhm
+        #print(f"{prefix} {lor_res.n}:\n center={lor_center}\n gamma={lor_gamma}")        
+        # Compute EW: lor_depth * np.pi * lor_gamma
+        # equal to: (np.pi/2)*lor_depth*fwhm
 
-            EW = lor_depth * np.pi * lor_gamma
+        EW_fit = lor_depth * np.pi * lor_gamma
 
-
-            fit_val = {\
-                      'profile' : 1-profile,\
-                      'profile_nores' : 1-lorentzian(vrad, lor_center.n, lor_gamma.n, lor_depth.n, lor_continuum.n),\
-                      'rv': lor_center.n, \
-                      'e_rv': lor_center.s,\
-                      'width': lor_fwhm.n, \
-                      'e_width': lor_fwhm.s, \
-                      'EW': EW.n, \
-                      'e_EW': EW.s\
-                      }
+        profile_nores = 1-lorentzian(vrad, lor_center.n, lor_gamma.n, lor_depth.n, lor_continuum.n)
+        rv = lor_center.n
+        e_rv = lor_center.s
+        width = lor_fwhm.n
+        e_width = lor_fwhm.s
+        EW = EW_fit.n
+        e_EW = EW_fit.s
 
     # VOIGT FUNCTION    
     elif function == 'voigt':
-        if prefix is None:
-            fit_val = {\
-                      'profile' : 1-profile,\
-                      'profile_nores' : 1-profile,\
-                      'rv': 0, \
-                      'e_rv': 0,\
-                      'width': 0, \
-                      'e_width': 0, \
-                      'EW': 0, \
-                      'e_EW': 0\
-                      }
-        else:
-            try:
-                voigt_center = result.uvars[f"{prefix}x0"]
-                voigt_sigma = result.uvars[f"{prefix}s"]
-                voigt_gamma = result.uvars[f"{prefix}g"]
-                voigt_depth = result.uvars[f"{prefix}F0"]
-                voigt_continuum = result.uvars[f"{prefix}K"]
-                voigt_res = result.uvars[f"{prefix}res"]
+        try:
+            voigt_center = result.uvars[f"{prefix}x0"]
+            voigt_sigma = result.uvars[f"{prefix}s"]
+            voigt_gamma = result.uvars[f"{prefix}g"]
+            voigt_depth = result.uvars[f"{prefix}F0"]
+            voigt_continuum = result.uvars[f"{prefix}K"]
+            voigt_res = result.uvars[f"{prefix}res"]
 
-            except AttributeError:
-                voigt_center = ufloat(0,0)
-                voigt_sigma = ufloat(0,0)
-                voigt_gamma = ufloat(0,0)
-                voigt_depth = ufloat(0,0)
-                voigt_continuum = ufloat(0,0)
-                voigt_res = 0
-            #print(f"{prefix} {voigt_res.n}:\n center={voigt_center}\n sigma={voigt_sigma}\n gamma={voigt_gamma}")        
+        except AttributeError:
+            voigt_center = ufloat(0,0)
+            voigt_sigma = ufloat(0,0)
+            voigt_gamma = ufloat(0,0)
+            voigt_depth = ufloat(0,0)
+            voigt_continuum = ufloat(0,0)
+            voigt_res = 0
+        #print(f"{prefix} {voigt_res.n}:\n center={voigt_center}\n sigma={voigt_sigma}\n gamma={voigt_gamma}")        
 
-            fwhm_lor = 2*voigt_gamma
-            fwhm_gauss = np.sqrt(8*np.log(2))*voigt_sigma
-            fwhm_voigt = 0.5346 * fwhm_lor  + umath.sqrt( 0.2166 * fwhm_lor**2 + fwhm_gauss**2)
+        fwhm_lor = 2*voigt_gamma
+        fwhm_gauss = np.sqrt(8*np.log(2))*voigt_sigma
+        fwhm_voigt = 0.5346 * fwhm_lor  + umath.sqrt( 0.2166 * fwhm_lor**2 + fwhm_gauss**2)
 
-            fit_val = {\
-                      'profile' : 1-profile,\
-                      'profile_nores' : 1-voigt(vrad, voigt_center.n, voigt_sigma.n, voigt_gamma.n, voigt_depth.n, voigt_continuum.n),\
-                      'rv': voigt_center.n, \
-                      'e_rv': voigt_center.s,\
-                      'width': fwhm_voigt.n, \
-                      'e_width': fwhm_voigt.s, \
-                      'EW': voigt_depth.n, \
-                      'e_EW': voigt_depth.s\
-                      }
+        profile_nores = 1-voigt(vrad, voigt_center.n, voigt_sigma.n, voigt_gamma.n, voigt_depth.n, voigt_continuum.n)
+        rv = voigt_center.n
+        e_rv = voigt_center.s
+        width = fwhm_voigt.n
+        e_width = fwhm_voigt.s
+        EW = voigt_depth.n
+        e_EW = voigt_depth.s
 
     # ROTATIONAL FUNCTION    
     elif function == 'rotational':
-        if prefix is None:
-            fit_val = {\
-                      'profile' : 1-profile,\
-                      'profile_nores' : 1-profile,\
-                      'rv': 0, \
-                      'e_rv': 0,\
-                      'width': 0, \
-                      'e_width': 0, \
-                      'EW': 0, \
-                      'e_EW': 0\
-                      }
-        else:
-            try:
-                rot_center = result.uvars[f"{prefix}x0"]
-                rot_sigma = result.uvars[f"{prefix}s"]
-                rot_depth = result.uvars[f"{prefix}F0"]
-                rot_continuum = result.uvars[f"{prefix}K"]
+        try:
+            rot_center = result.uvars[f"{prefix}x0"]
+            rot_sigma = result.uvars[f"{prefix}s"]
+            rot_depth = result.uvars[f"{prefix}F0"]
+            rot_continuum = result.uvars[f"{prefix}K"]
 
-            except AttributeError:
-                rot_center = ufloat(0,0)
-                rot_sigma = ufloat(0,0)
-                rot_depth = ufloat(0,0)
-                rot_continuum = ufloat(0,0)
-            #print(f"{prefix}:\n center={rot_center}\n vsini={rot_sigma}")        
+        except AttributeError:
+            rot_center = ufloat(0,0)
+            rot_sigma = ufloat(0,0)
+            rot_depth = ufloat(0,0)
+            rot_continuum = ufloat(0,0)
+        #print(f"{prefix}:\n center={rot_center}\n vsini={rot_sigma}")        
                     
-            # Compute EW: area beneath the fit
-            # inside 3 sigma range
-            idx1 = np.searchsorted(vrad, rot_center.n-rot_sigma.n)
-            idx2 = np.searchsorted(vrad, rot_center.n+rot_sigma.n, side='right')
-            idx2 = min(idx2,len(vrad)-1)
+        # Compute EW: area beneath the fit
+        # inside 3 sigma range
+        idx1 = np.searchsorted(vrad, rot_center.n-rot_sigma.n)
+        idx2 = np.searchsorted(vrad, rot_center.n+rot_sigma.n, side='right')
+        idx2 = min(idx2,len(vrad)-1)
             
-            EW = simpson(profile[idx1:idx2]-rot_continuum.n, x=vrad[idx1:idx2]) # equivalent width
-            std_EW = np.sqrt(np.nansum(result.eval_uncertainty(x=vrad[idx1:idx2])**2))
-            h_v = abs(np.nanmean(np.diff(vrad)))
-            e_EW = h_v*np.sqrt(len(vrad[idx1:idx2]))*std_EW
+        EW = simpson(profile[idx1:idx2]-rot_continuum.n, x=vrad[idx1:idx2]) # equivalent width
+        std_EW = np.sqrt(np.nansum(result.eval_uncertainty(x=vrad[idx1:idx2])**2))
+        h_v = abs(np.nanmean(np.diff(vrad)))
+        e_EW = h_v*np.sqrt(len(vrad[idx1:idx2]))*std_EW
 
-            fit_val = {\
-                      'profile' : 1-profile,\
-                      'profile_nores' : 1-profile,\
-                      'rv': rot_center.n, \
-                      'e_rv': rot_center.s,\
-                      'width': rot_sigma.n, \
-                      'e_width': rot_sigma.s, \
-                      'EW': EW, \
-                      'e_EW': e_EW\
-                      }
-    
+        profile_nores = 1-profile
+        rv = rot_center.n
+        e_rv = rot_center.s
+        width = rot_sigma.n
+        e_width = rot_sigma.s
+        EW = EW
+        e_EW = e_EW
+ 
+ 
+    fit_val = {\
+               'function' : function,\
+               'profile' : 1-profile,\
+               'profile_nores' : profile_nores,\
+               'rv': rv, \
+               'e_rv': e_rv,\
+               'width': width, \
+               'e_width': e_width, \
+               'ew': EW, \
+               'e_ew': e_EW\
+               }
+ 
     return fit_val
 
 ##################################
@@ -2114,6 +2064,7 @@ def fit_profile(vrad, flux, errs=0, fit='g', rv0=None, width=10, ld=0.6, resolut
     # Check that the number of the inputs match the number of the component
     # Otherwise use the same input for all the component
     
+    fit = fit.lower()
     fit_funcs = fit.split(',')
     if len(fit_funcs) != component:
         fit_funcs = list(str(fit[0])*component)
@@ -2431,17 +2382,16 @@ def fit_profile(vrad, flux, errs=0, fit='g', rv0=None, width=10, ld=0.6, resolut
             else:
                 model += mod
     
-
-        
     
-    # fit the global model 
-
+    # fit the global model     
     
-    fit_result = model.fit(1-flux, params, x=vrad, weights=1./errs, scale_covar=False)
+    if err_abs:
+        fit_result = model.fit(1-flux, params, x=vrad, weights=1./errs, scale_covar=False)
+    else:
+        fit_result = model.fit(1-flux, params, x=vrad, weights=1./errs, scale_covar=True)
     comps = fit_result.eval_components(x=vrad)
     
     result = {'report' : fit_result.fit_report(), 'profile' : 1-fit_result.best_fit}
-
     
     for comp in range(component):
         result[comp] = {}
@@ -2449,9 +2399,7 @@ def fit_profile(vrad, flux, errs=0, fit='g', rv0=None, width=10, ld=0.6, resolut
         for fun in prefixes[comp]:
             if prefixes[comp][fun]:
                 fit_prof = comps[prefixes[comp][fun]]
-            else:
-                fit_prof = np.zeros(vrad.shape)            
-            result[comp][fun] = fit_values(fun, prefixes[comp][fun], fit_result, fit_prof)
+                result[comp] = fit_values(fun, prefixes[comp][fun], fit_result, fit_prof)
     
     return result
 
@@ -2573,8 +2521,7 @@ def bisector(rv_range, flux, errs=0, limits=False):
     if not limits:
         limits = show_ccf([rv_range],[flux])
 
-
-    # 1. normalise line
+    # Find the indexes of the line limits
     x1 = np.searchsorted(rv_range,float(limits[0]))
     x2 = np.searchsorted(rv_range,float(limits[1]))
     x_1 = min(x1,x2)
@@ -2586,69 +2533,147 @@ def bisector(rv_range, flux, errs=0, limits=False):
         idxarray = np.zeros(flux.shape, dtype=bool)
         idxarray[0:x_1] = True
         idxarray[x_2+1:] = True
-
         errs = np.ones(flux.shape)*np.nanstd(flux[idxarray])
 
-
-    # Define the line (depth and width) and compute the bisector
+    # Select only the values of rv, flux and errors
+    # of the line, as defined by the limits
     line_flux = flux[x_1:x_2]
     line_rv = rv_range[x_1:x_2]
     line_errs = errs[x_1:x_2]
 
+    # Find the line minimum and maximum
+    # Define the flux range for the bisector, with
+    # 100 steps between minimum and maximum flux
     f_min = np.amin(line_flux)
     f_max = np.amax(line_flux)
+    f_range = np.linspace(f_min, f_max, 100)
+
+    # Use the minimum position to split the line in two halves
     imin = np.argmin(line_flux)
-
-    rv_left = np.flip(line_rv[:imin+1])
-    f_left = np.flip(line_flux[:imin+1])
-    e_left = np.flip(line_errs[:imin+1])
-
     rv_right = line_rv[imin:]
     f_right = line_flux[imin:]
     e_right = line_errs[imin:]
+        
+    rv_left = line_rv[:imin+1]
+    f_left = line_flux[:imin+1]
+    e_left = line_errs[:imin+1]
+    
+    
+    # Left side: the flux should always decrease
+    ikind = 'linear'
+    
+    sub_left = np.where(np.diff(f_left) > 0)[0] + 1
+    
+    if len(sub_left) == 0:
+        sub_left = [int(0)]
+    
+    line_left = np.full((len(sub_left)+1,100), np.nan)
+    line_err_left = np.full((len(sub_left)+1,100), np.nan)
+    #print(line_left)
+        
+    for n,subl in enumerate(sub_left):
 
-    f_range = np.linspace(f_min, f_max, 100)
+        if n == 0:
+            start = 0
+        else:
+            start = sub_left[n-1]
+        end = subl
 
-    bisvel = []
-    err_bisvel = []
+        if end > start:        
+            sub_rv = rv_left[start:end]
+            sub_flux = f_left[start:end]
+            sub_err = e_left[start:end]
 
-    for n, f_step in enumerate(f_range):
-        left = np.nonzero(f_left >= f_step)[0]
-        try:
-            left=left[0]
-        except IndexError:
-            f_range = f_range[:n]
-            break
+            intleft = interp1d(sub_flux, sub_rv, kind=ikind, bounds_error=False)
+            line_left[n] = intleft(f_range)
+        
+            interrleft = interp1d(sub_flux, sub_err, kind=ikind, bounds_error=False)
+            line_err_left[n] = interrleft(f_range)  
                 
-        res = linregress(rv_left[max(left-1,0):min(len(rv_left-1),left+2)],f_left[max(left-1,0):min(len(rv_left-1),left+2)])
-        #res.intercept + res.slope
-        #f_step = res.intercept + res.slope*v_left
-        v_left = (f_step - res.intercept)/res.slope
-        with np.errstate(invalid='ignore'):
-            err_left = (1/np.sqrt(2)) * e_left[left] * (1/(res.slope))
+        if n == len(sub_left)-1:
+            start = subl
+            sub_rv = rv_left[start:]
+            sub_flux = f_left[start:]
+            sub_err = e_left[start:]
+
+            intleft = interp1d(sub_flux, sub_rv, kind=ikind, bounds_error=False, fill_value=(np.nan,np.nan))
+            line_left[n+1] = intleft(f_range)
+            
+            interrleft = interp1d(sub_flux, sub_err, kind=ikind, bounds_error=False, fill_value=(np.nan,np.nan))
+            line_err_left[n+1] = interrleft(f_range)  
+
+                        
+    with np.errstate(all='ignore'):
+        line_left = np.nanmean(np.asarray(line_left),axis=0)
+        line_err_left = np.nanmean(np.asarray(line_err_left),axis=0)
+    
+    line_left = line_left
+    line_err_left = line_err_left
+
+    # Right side: the flux should always increase
+    sub_right = np.where(np.diff(f_right) < 0)[0] + 1
+
+
+    if len(sub_right) == 0:
+        sub_right = [int(0)]
+
+    line_right = np.full((len(sub_left)+1,100), np.nan)
+    line_err_right = np.full((len(sub_left)+1,100), np.nan)
+
+    
+    for n,subl in enumerate(sub_right):
+        if n == 0:
+            start = 0
+        else:
+            start = sub_right[n-1]
+        end = subl
+
+        if end > start:
+            sub_rv = rv_right[start:end]
+            sub_flux = f_right[start:end]
+            sub_err = e_right[start:end]      
         
-
-        right = np.nonzero(f_right >= f_step)[0]
-        try:
-            right=right[0]
-        except IndexError:
-            f_range = f_range[:n]
-            break
-
-        res = linregress(rv_right[max(right-1,0):min(len(rv_right-1),right+2)],f_right[max(right-1,0):min(len(rv_right-1),right+2)])
-        #res.intercept + res.slope
-        #f_step = res.intercept + res.slope*v_right
-        v_right = (f_step - res.intercept)/res.slope
-        with np.errstate(invalid='ignore'):
-            err_right = (1/np.sqrt(2)) * e_right[right] * (1/(res.slope))            
-
-        bisvel.append(0.5*(v_right + v_left))
+            intright = interp1d(sub_flux, sub_rv, kind=ikind, bounds_error=False, fill_value=np.nan)
+            line_right[n] = intright(f_range)
         
-        with np.errstate(invalid='ignore'):
-            err_bisvel.append(0.5*np.sqrt(err_left**2 + err_right**2))
+            interrright = interp1d(sub_flux, sub_err, kind=ikind, bounds_error=False, fill_value=np.nan)
+            line_err_right[n] = interrright(f_range)  
+                
+        if n == len(sub_right)-1:
+            start = subl
+            sub_rv = rv_right[start:]
+            sub_flux = f_right[start:]
+            sub_err = e_right[start:]
 
-    bisvel = np.asarray(bisvel)
-    err_bisvel = np.asarray(err_bisvel)
+            intright = interp1d(sub_flux, sub_rv, kind=ikind, bounds_error=False, fill_value=np.nan)
+            line_right[n+1] = intright(f_range)
+            
+            interrright = interp1d(sub_flux, sub_err, kind=ikind, bounds_error=False, fill_value=np.nan)
+            line_err_right[n+1] = interrright(f_range)  
+
+    with np.errstate(all='ignore'):                        
+        line_right = np.nanmean(np.asarray(line_right),axis=0)
+        line_err_right = np.nanmean(np.asarray(line_err_right),axis=0)
+
+    #print(line_left)
+    #print(line_right)
+        
+    bisvel = 0.5*(line_right+line_left)
+    
+    #print(bisvel)
+    
+    slope_left = np.diff(line_left, prepend=f_min)
+    slope_right = np.diff(line_right, prepend=f_min)
+   
+    
+    with np.errstate(all='ignore'):
+        err_left = (1/np.sqrt(2)) * line_err_left * (1/slope_left)
+        err_right = (1/np.sqrt(2)) * line_err_right * (1/slope_right)
+    
+    err_bisvel = 0.5*np.sqrt(err_left**2 + err_right**2)
+    
+
+    
     bispan = np.nanmean(bisvel[10:41]) - np.nanmean(bisvel[55:91])
     err_bispan = 0.5*np.sqrt((np.sum(err_bisvel[10:41])/len(err_bisvel[10:41])**2) + (np.sum(err_bisvel[55:91])/len(err_bisvel[55:91])**2))
 

@@ -67,8 +67,14 @@ The function `compute_ccf` compute the mean line profile by performing a Cross-C
 > [!IMPORTANT]
 > To save computational time, the spectra should be split in subsets, and CCF profiles are computed for each subset independently and then averaged. This is naturally done using the echelle orders/subsets option in `norm_spectrum`: `compute_ccf` will automatically find the separations between the orders where the wavelength gap is larger than the average wavelength step or if there is overlapping.
 
-> [!WARNING]
-> The cross-correlation with a spectrum is still unreliable
+> [!TIP]
+> When using a normalised spectrum as a mask, it is important to use the `read_mask` function with the following parameters:
+> ```
+> spectrum = True
+> invert = True # only if the spectrum has continuum = 1 and absorption lines
+> balmer = False # possibly also tellurics = False
+> depths=(-100,100) # exaggerated limits, to account for any imperfect normalisation of the spectrum
+> ```
 
 ## Analysis of the profiles
 Once the profiles have been obtained, PARVATI allows to perform several useful operations on the data, to better analyse them.
@@ -123,5 +129,5 @@ A couple of simple scripts are given in the `tests` directory along with two hig
 ## Graphical interface: SHIVA
 The graphical interface of PARVATI is SHIVA (Simple and Helpful Interface for Variability Analysis). SHIVA may be downloaded from https://github.com/mrainer74/shiva
 
-> [!CAUTION]
-> At the moment, SHIVA does not allow to use all the options of PARVATI, and the graphical window is still not optimised. 
+> [!NOTE]
+> Since v3.0.0 SHIVA moved from Tkinter to PyQT6.

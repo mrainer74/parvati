@@ -4,20 +4,29 @@ import matplotlib.pyplot as plt
 
 import os, sys
 
-#import parvati as pa
-import sys
-sys.path.append("/home/monica/Documents/GitHub/parvati/src/parvati")
-import new_parvati as pa
+import parvati as pa
+#import sys
+#sys.path.append("/home/monica/Documents/GitHub/parvati/src/parvati")
+#import new_parvati as pa
 
-testccf = 'fast_rotator_ccf.prf'
+star = 'fast_rotator_ccf'
+star = 'red_dwarf_ccf'
+
+testccf = f'{star}.prf'
+
+rv0s = {'fast_rotator_ccf' : -20, 'red_dwarf_ccf' : 8} 
+widths = {'fast_rotator_ccf' : 100, 'red_dwarf_ccf' : 10} 
+lims = {'fast_rotator_ccf' : [-250,200], 'red_dwarf_ccf' : [-15,30]} 
+
+rv0 = rv0s[star]
+width = widths[star]
+lim = lims[star]
     
-rv0 = -20
-width = 100
-    
-outpng_fit = 'fast_rotator_ccf_fit.png'
-outpng_bis = 'fast_rotator_ccf_bis.png'
-outpng_fou = 'fast_rotator_ccf_fourier.png'
-    
+outpng_fit = f'{star}_fit.png'
+outpng_bis = f'{star}_bis.png'
+outpng_fou = f'{star}_fourier.png'
+
+
 
 ### Read the ASCII file with the profile
 
@@ -43,13 +52,14 @@ voigt = pa.fit_profile(rvs, flux, errs=errs, ld=0.53, width=width, rv0=rv0, fit=
 
 plt.xlabel('Doppler velocity (km/s)')
 plt.ylabel('Normalised flux')
+plt.xlim(lim[0],lim[1])
 plt.plot(rvs, flux, 'k-', label='Mean profile')
 plt.plot(rvs, gauss['profile'], 'C0', label='Gaussian fit')
 plt.plot(rvs, rotational['profile'], 'C1', label='Rotational fit')
-plt.plot(rvs, asymmetric['profile'], 'C0', label='Asymmetric Gaussian fit')
-plt.plot(rvs, supergaussian['profile'], 'C0', label='Supergaussian fit')
-plt.plot(rvs, lorentzian['profile'], 'C1', label='Lorentzian fit')
-plt.plot(rvs, voigt['profile'], 'C1', label='Voigt fit')
+plt.plot(rvs, asymmetric['profile'], 'C2', label='Asymmetric Gaussian fit')
+plt.plot(rvs, supergaussian['profile'], 'C3', label='Supergaussian fit')
+plt.plot(rvs, lorentzian['profile'], 'C4', label='Lorentzian fit')
+plt.plot(rvs, voigt['profile'], 'C5', label='Voigt fit')
 plt.legend(loc='best')
 plt.savefig(outpng_fit)
 plt.show()
@@ -87,7 +97,7 @@ print(f"q2/q1 ratio: {fft_res['ratio']} +/- {fft_res['e_ratio']}")
 print(f"RV from Fourier: {fft_res['rv']}")
 
 plt.xlim(0,0.03)
-plt.ylim(10**(-9),1)
+#plt.ylim(10**(-9),1)
 plt.xlabel("Frequency [s/km]")
 plt.ylabel("Fourier Amplitude")
 plt.plot(fft_res['FFT_fr'],fft_res['FFT_pow'], label='Fourier transform')

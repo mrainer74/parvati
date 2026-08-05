@@ -957,8 +957,8 @@ def compute_lsd(spectrum, mask_data, vrange=(-200,200), \
         # To avoid weighting less the core of the lines, where SNR is lower
         # due to the lower flux, first the SNR array is roughly smoothed
 
-        snr_spl = UnivariateSpline(o_wave, split_snr[o])
-        split_snr[o] = snr_spl(o_wave)
+        #snr_spl = UnivariateSpline(o_wave, split_snr[o])
+        #split_snr[o] = snr_spl(o_wave)
 
 
         # select mask lines in the wavelength range of the order
@@ -968,7 +968,7 @@ def compute_lsd(spectrum, mask_data, vrange=(-200,200), \
         mask_depths = dmask[idxs]
         
         # Keep only unique values of mask wavelength
-        # and sort forincreasing wavelength
+        # and sort for increasing wavelength
         mask_wave, idx_mask = np.unique(mask_wave, return_index=True)
         mask_depths = mask_depths[idx_mask]
         
@@ -977,7 +977,9 @@ def compute_lsd(spectrum, mask_data, vrange=(-200,200), \
                 print(f"Order {o+1}: not enough mask lines, skipped.")
             continue
 
+        
         # select only regions of spectra and snr around the mask lines
+        # Create a first rough profile 
         profile = np.zeros(rv_range.shape)
         den = np.zeros(rv_range.shape)
         for num_line, line in enumerate(mask_wave):
@@ -989,6 +991,12 @@ def compute_lsd(spectrum, mask_data, vrange=(-200,200), \
             profile += line_spectrum[:len(profile)]*mask_depths[num_line]
             den += mask_depths[num_line]
 
+        
+        # Using the first profile, define the width of the line
+        # then use this value to select the mask lines 
+        # this will help add mask lines in case the v_range
+        # is very broad, but the spectral line is not
+        
         profile /= den
         if not profile.any():
             print(f"Empty profile. Skipped.")
@@ -999,6 +1007,7 @@ def compute_lsd(spectrum, mask_data, vrange=(-200,200), \
         broad = max((rv_range[idx_range[-1]] - rv_range[idx_range[0]])/10., 5*step)
         vmin = max(rv_range[idx_range[0]] - broad, rv_range[0])
         vmax = min(rv_range[idx_range[-1]] + broad, rv_range[-1])
+        
 
         # re-select mask lines in the wavelength range of the order
         idxs = np.nonzero(np.logical_and(wmask*(1 + vmin/ckms) > new_wave[5],\
@@ -1045,9 +1054,11 @@ def compute_lsd(spectrum, mask_data, vrange=(-200,200), \
                           (vel_i - rv_range[find_i])/ \
                           (rv_range[find_i+1] - rv_range[find_i]))
 
-            diag1 = (np.array(np.arange(line_range)+i_start-1, dtype=int),\
+            # 20260804 modified: i_start instead of i_start-1 (diag1 and diag2)
+            # previous versions shifted the profile of one RV step
+            diag1 = (np.array(np.arange(line_range)+i_start, dtype=int),\
                      np.array(np.arange(line_range), dtype=int))
-            diag2 = (np.array(np.arange(line_range-1)+i_start-1, dtype=int),\
+            diag2 = (np.array(np.arange(line_range-1)+i_start, dtype=int),\
                      np.array(np.arange(line_range-1)+1,dtype=int))
 
             mask_matrix[diag1] += block_diag1
@@ -1211,8 +1222,7 @@ def compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=F
         # and sort for increasing wavelength
         mask_wave, idx_mask = np.unique(mask_wave, return_index=True)
         mask_depths = mask_depths[idx_mask]
-        
-                
+                        
         mask_weight = len(mask_wave)
         ccf_weights.append(np.sum(mask_depths)*mask_weight)
 
@@ -1234,12 +1244,10 @@ def compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=F
         #mask_wave = o_mask_wave
         #mask_depths = o_mask
 
-
         ccf = np.zeros(len(rv_range))
         e_ccf = np.zeros(len(rv_range))
         
-        
-        
+                
         for n, rv in enumerate(rv_range):
             rv_mask_depths = np.zeros(len(o_split_nflux))
             if mask_spectrum:
@@ -1277,11 +1285,6 @@ def compute_ccf(spectrum, mask_data, vrange=(-200,200), step=1., mask_spectrum=F
            
         ccf_results.append(ccf)
         ccf_errs.append(e_ccf)
-        #plt.title(f"{o}: {np.round(np.nanmean(e_ccf),5)}")
-        #plt.plot(rv_range, ccf)
-        #plt.savefig(f"test_{o}_ccf.png")
-        #plt.show()
-        #plt.close()
         
     ccf_errs = np.asarray(ccf_errs)
     ccf_errs = np.nan_to_num(ccf_errs)

@@ -2573,7 +2573,6 @@ def bisector(rv_range, flux, errs=0, limits=False):
     
     line_left = np.full((len(sub_left)+1,100), np.nan)
     line_err_left = np.full((len(sub_left)+1,100), np.nan)
-    #print(line_left)
         
     for n,subl in enumerate(sub_left):
 
@@ -2605,14 +2604,14 @@ def bisector(rv_range, flux, errs=0, limits=False):
             
             interrleft = interp1d(sub_flux, sub_err, kind=ikind, bounds_error=False, fill_value=(np.nan,np.nan))
             line_err_left[n+1] = interrleft(f_range)  
-
-                        
+                            
     with np.errstate(all='ignore'):
         line_left = np.nanmean(np.asarray(line_left),axis=0)
-        line_err_left = np.nanmean(np.asarray(line_err_left),axis=0)
+        line_err_left = np.nansum(np.asarray(line_err_left),axis=0)
     
     line_left = line_left
     line_err_left = line_err_left
+    #print(line_left)
 
     # Right side: the flux should always increase
     sub_right = np.where(np.diff(f_right) < 0)[0] + 1
@@ -2621,8 +2620,9 @@ def bisector(rv_range, flux, errs=0, limits=False):
     if len(sub_right) == 0:
         sub_right = [int(0)]
 
-    line_right = np.full((len(sub_left)+1,100), np.nan)
-    line_err_right = np.full((len(sub_left)+1,100), np.nan)
+    #print(sub_right)
+    line_right = np.full((len(sub_right)+1,100), np.nan)
+    line_err_right = np.full((len(sub_right)+1,100), np.nan)
 
     
     for n,subl in enumerate(sub_right):
@@ -2657,9 +2657,9 @@ def bisector(rv_range, flux, errs=0, limits=False):
 
     with np.errstate(all='ignore'):                        
         line_right = np.nanmean(np.asarray(line_right),axis=0)
-        line_err_right = np.nanmean(np.asarray(line_err_right),axis=0)
+        line_err_right = np.nansum(np.asarray(line_err_right),axis=0)
 
-    #print(line_left)
+
     #print(line_right)
         
     bisvel = 0.5*(line_right+line_left)

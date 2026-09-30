@@ -11,12 +11,15 @@ authors:
   - name: "Monica Rainer"
     orcid: 0000-0002-8786-2572
     email: "monica.rainer@inaf.it"
-    affiliation: "INAF - Osservatorio Astronomico di Brera, Italy"
+    affiliation: 1
     corresponding: true
+affiliations:
+ - index: 1
+   name: 
    
 date: 29 September 2026
 bibliography: paper.bib
-
+---
 
 # Summary
 

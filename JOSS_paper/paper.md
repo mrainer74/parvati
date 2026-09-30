@@ -1,5 +1,5 @@
 ---
-title: 'PARVATI and SHIVA: a Python package and GUI for the computation and analysis of astronomical mean line profiles'
+title: "PARVATI and SHIVA: a Python package and GUI for the computation and analysis of astronomical mean line profiles"
 tags:
   - Python
   - astronomy
@@ -8,13 +8,11 @@ tags:
   - radial velocity
   - variability
 authors:
-  - name: Monica Rainer
+  - name: "Monica Rainer"
     orcid: 0000-0002-8786-2572
-    affiliation: 1
+    email: "monica.rainer@inaf.it"
+    affiliation: "INAF - Osservatorio Astronomico di Brera, Italy"
     corresponding: true
-affiliations:
- - index: 1
-   name: INAF - Osservatorio Astronomico di Brera, Italy
    
 date: 29 September 2026
 bibliography: paper.bib

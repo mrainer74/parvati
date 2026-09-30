@@ -24,6 +24,7 @@ bibliography: paper.bib
 # Summary
 
 High-resolution spectroscopy is a powerful instrument to study the characteristics of astronomical objects, e.g., their physical parameters, chemical composition, radial velocity (RV), projected rotational velocity (*v*sin*i*), and so on. The drawback is a lower Signal-to-Noise Ratio (SNR) compared to low-resolution spectroscopy, that hinders the study of faint signals. To overcome this limitation, mean line profiles are used in several astronomical fields (e.g., exoplanets search and characterization, asteroseismology, stellar kinematics) to combine the signal of hundreds or thousands of spectral lines in a single mean line with increased SNR.
+
 PARVATI (Profiles Analysis and Radial Velocities using Astronomical Tools for Investigation) is a stand-alone Python package that contains several useful functions to create mean line profiles or extract single spectroscopic lines from the spectra. The line profiles may then be used to compute RVs, *v*sin*i*, the equivalent widths (EW), the line moments, and other additional scientific information. It is complemented by SHIVA (a Simple and Helpful Interface for Variability Analysis), a standalone Python pyQT6 GUI wrapper for PARVATI.
 
 # Statement of need
@@ -42,11 +43,11 @@ The major high resolution optical spectrographs (e.g., HARPS, HARPS-N, ESPRESSO)
 
 # Software design
 
-PARVATI is a simple Python package that may be directly installed with pip or downloaded from [GitHub](https://github.com/mrainer74/parvati).
+PARVATI is a simple Python package that may be directly installed with pip or downloaded from <https://github.com/mrainer74/parvati>.
 It contains several independent functions, that may be divided in three main categories: (1) spectra ingestion and normalisation, (2) single line extraction or mean line profile computation (both as CCF and LSD), (3) line analysis. The line analysis functions enable to fit a single line or multiple lines simultaneously with many different fitting functions, to compute RVs, line widths and/or *v*sin*i*, EWs, the line bisector and the bisector's span, the first five line moments (EW, RV, width, skewness and kurtosis), and to perform the Fourier transform of the line.
 All the functions are highly customable, and may be integrated in any kind of personal workflow.
 
-SHIVA is a GUI wrapper for PARVATI that allows to streamline the analysis process, from spectra ingestion up to the creation of time series with the physical quantities derived from the analysis, saving all main results as FITS files and (optionally) auxiliary ASCII files, and keeping a detailed log of the work done. It is freely avalaible on [GitHub](https://github.com/mrainer74/shiva), and it may be run simply by command line as:
+SHIVA is a GUI wrapper for PARVATI that allows to streamline the analysis process, from spectra ingestion up to the creation of time series with the physical quantities derived from the analysis, saving all main results as FITS files and (optionally) auxiliary ASCII files, and keeping a detailed log of the work done. It is freely avalaible on <https://github.com/mrainer74/shiva>, and it may be run simply by command line as:
 ```
 python shiva.py
 ```

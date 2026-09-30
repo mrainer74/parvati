@@ -17,7 +17,7 @@ affiliations:
  - name: INAF - Osservatorio Astronomico di Brera, Italy
    index: 1
 date: 29 September 2026
-bibliography: parvati.bib
+bibliography: paper.bib
 
 
 # Summary
